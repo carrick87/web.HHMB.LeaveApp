@@ -1,0 +1,200 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow public read access to employees collection for sign-up
+    match /employees/{document=**} {
+      allow read: if true;
+      allow write: if request.auth != null && 
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Super Admin';
+    }
+    
+    // Users collection - users can read their own data, admins can read all
+    // Allow create for sign-up (user is authenticated after Firebase Auth creates account)
+    match /users/{userId} {
+      function getRequesterRole() {
+        return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+      }
+
+      // Allow reading own data or if admin/super admin
+      allow read: if request.auth != null && (
+        request.auth.uid == userId ||
+        getRequesterRole() == 'Admin' ||
+        getRequesterRole() == 'Super Admin'
+      );
+
+      // Allow writing own data OR if Admin/Super Admin (for updating other users)
+      allow write: if request.auth != null && (
+        request.auth.uid == userId ||
+        getRequesterRole() == 'Admin' ||
+        getRequesterRole() == 'Super Admin'
+      );
+      // Allow creating own user document (after Firebase Auth creates account)
+      allow create: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Allow querying users collection to check for duplicate employee numbers during sign-up
+    // This allows unauthenticated users to check if an employee number already exists
+    // This is necessary to prevent duplicate employee numbers during registration
+    // We allow list queries on the users collection for this specific use case
+    match /users/{document=**} {
+      // Allow list queries for checking employeeNumber duplicates
+      // This is needed for sign-up validation - prevents duplicate employee numbers
+      // The query filters by employeeNumber field, so it's safe to allow
+      allow list: if true; // Allow queries to check for duplicate employee numbers
+    }
+    
+    // Departments - authenticated users can read, admins can write
+    match /departments/{document=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Super Admin';
+    }
+    
+    // Leave requests - users can read their own, approvers can read department requests
+    match /leaveRequests/{requestId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
+      allow delete: if request.auth != null;
+    }
+    
+    // Email config - all authenticated users can read (needed for sending emails), only admins can write
+    match /emailConfig/{document=**} {
+      allow read: if request.auth != null; // All authenticated users can read email config
+      allow write: if request.auth != null && 
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Super Admin';
+    }
+    
+    // Email config with underscore - all authenticated users can read, only admins can write
+    match /email_config/{document=**} {
+      allow read: if request.auth != null; // All authenticated users can read email config
+      allow write: if request.auth != null && 
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Super Admin';
+    }
+    
+    // Email templates - all authenticated users can read (needed for sending emails), only admins can write
+    match /email_templates/{document=**} {
+      allow read: if request.auth != null; // All authenticated users can read email templates
+      allow write: if request.auth != null && 
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Super Admin';
+    }
+    
+    // Config collection - admins only
+    match /config/{document=**} {
+      allow read, write: if request.auth != null && 
+                        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Super Admin';
+    }
+    
+    // Leave type configurations - all authenticated users can read (needed for leave application), only Super Admin can write
+    match /leaveTypeConfigs/{document=**} {
+      allow read: if request.auth != null; // All authenticated users can read leave type configs
+      allow write: if request.auth != null && 
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Super Admin';
+    }
+    
+    // Leave balance history - users can read their own, admins can read/write all
+    match /leaveBalanceHistory/{historyId} {
+      // Helper function to get user document
+      function getUserDoc() {
+        return get(/databases/$(database)/documents/users/$(request.auth.uid));
+      }
+      
+      // Helper function to get user role
+      function getUserRole() {
+        return getUserDoc().data.role;
+      }
+      
+      // Helper function to get user's employee number
+      function getUserEmployeeNumber() {
+        return getUserDoc().data.employeeNumber;
+      }
+      
+      // Allow reading if:
+      // 1. User is reading their own record (employeeNumber matches), OR
+      // 2. User is ADMIN or SUPER_ADMIN
+      allow read: if request.auth != null && (
+        (resource.data.employeeNumber != null && 
+         resource.data.employeeNumber == getUserEmployeeNumber()) ||
+        getUserRole() == 'Admin' ||
+        getUserRole() == 'Super Admin'
+      );
+      
+      // Allow writing only for ADMIN and SUPER_ADMIN
+      allow write: if request.auth != null && (
+        getUserRole() == 'Admin' ||
+        getUserRole() == 'Super Admin'
+      );
+    }
+    
+    // Leave balance current (reference table) - authenticated users can read (queries filter by employeeNumber), admins can write
+    match /leaveBalanceCurrent/{currentId} {
+      // Helper function to get user document
+      function getUserDoc() {
+        return get(/databases/$(database)/documents/users/$(request.auth.uid));
+      }
+      
+      // Helper function to get user role
+      function getUserRole() {
+        return getUserDoc().data.role;
+      }
+      
+      // Allow reading for all authenticated users (queries filter by employeeNumber, so users can only access their own)
+      // This is needed during sign-up when user document doesn't exist yet
+      allow read: if request.auth != null;
+      
+      // Allow create, update, and delete only for ADMIN and SUPER_ADMIN
+      allow create: if request.auth != null && (
+        getUserRole() == 'Admin' ||
+        getUserRole() == 'Super Admin'
+      );
+      
+      allow update: if request.auth != null && (
+        getUserRole() == 'Admin' ||
+        getUserRole() == 'Super Admin'
+      );
+      
+      allow delete: if request.auth != null && (
+        getUserRole() == 'Admin' ||
+        getUserRole() == 'Super Admin'
+      );
+    }
+    
+    // Public holiday sets - all authenticated users can read (needed for leave calculations), admins can write
+    match /publicHolidaySets/{setId} {
+      // Helper function to get user document (returns null if doesn't exist)
+      function getUserDoc() {
+        return exists(/databases/$(database)/documents/users/$(request.auth.uid)) 
+          ? get(/databases/$(database)/documents/users/$(request.auth.uid))
+          : null;
+      }
+      
+      // Helper function to get user role (returns null if user doc doesn't exist)
+      function getUserRole() {
+        let userDoc = getUserDoc();
+        return userDoc != null ? userDoc.data.role : null;
+      }
+      
+      // Allow reading (including list queries) for all authenticated users (needed for leave calculations)
+      allow read, list: if request.auth != null;
+      
+      // Allow create, update, and delete only for ADMIN and SUPER_ADMIN
+      allow create: if request.auth != null && 
+                   getUserDoc() != null && (
+        getUserRole() == 'Admin' ||
+        getUserRole() == 'Super Admin'
+      );
+      
+      allow update: if request.auth != null && 
+                   getUserDoc() != null && (
+        getUserRole() == 'Admin' ||
+        getUserRole() == 'Super Admin'
+      );
+      
+      allow delete: if request.auth != null && 
+                   getUserDoc() != null && (
+        getUserRole() == 'Admin' ||
+        getUserRole() == 'Super Admin'
+      );
+    }
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "name": "Synergize Leave Management",
+  "description": "An intelligent annual leave application system for teams. It provides a seamless experience for employees to request time off and for managers to approve requests. Integrates with user directories and leverages AI to assist in drafting leave requests.",
+  "requestFramePermissions": []
+}

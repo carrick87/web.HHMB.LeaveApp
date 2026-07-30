@@ -1,0 +1,53 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Dependencies
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Backup and temporary files
+*_backup.*
+*_broken.*
+*_clean.*
+App_backup.tsx
+App_broken.tsx
+App_clean.tsx
+
+# Test and sample files
+*.xlsx
+*.xls
+!package*.json
+public/test-*.html
+public/upload-*.html
+
+# Uploads (user-generated content)
+uploads/*
+!uploads/.gitkeep
+
+# Environment files
+.env
+.env.local
+.env.production
+google-drive-config.env
+
+# Brainstorm visual companion session files
+.superpowers/

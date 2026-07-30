@@ -1,0 +1,18 @@
+# Google Drive Configuration Template
+# Copy these into .env.local (see .env.example)
+
+# Google Drive API Key
+# Get this from Google Cloud Console > APIs & Services > Credentials
+REACT_APP_GOOGLE_DRIVE_API_KEY=your_google_drive_api_key_here
+
+# Google Drive Folder ID
+# Create a folder in Google Drive, right-click > Get link, copy the folder ID from URL
+REACT_APP_GOOGLE_DRIVE_FOLDER_ID=your_google_drive_folder_id_here
+
+# Instructions:
+# 1. Go to https://console.cloud.google.com/
+# 2. Enable Google Drive API
+# 3. Create an API key
+# 4. Create a folder in Google Drive for attachments
+# 5. Copy the folder ID from the URL
+# 6. Add both values to your .env.local file
