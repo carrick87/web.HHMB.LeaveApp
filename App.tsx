@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine } from 'recharts';
-import { LeaveRequest, LeaveStatus, LeaveType, User, UserRole, Department, LeaveTypeConfig, Attachment } from './types';
+import { LeaveRequest, LeaveStatus, LeaveType, User, UserRole, Department, LeaveTypeConfig, Attachment, Branch } from './types';
 import { generateLeaveReason } from './services/geminiService';
 import { 
     getLeaveDaysBetween, 
@@ -21,9 +21,11 @@ import {
 } from './utils/leaveConflictUtils';
 import { 
     onAuthStateChanged, 
-    signInUser, 
-    signUpUser,
-    checkEmployeeNumberExists, 
+    signInUser,
+    bootstrapSuperAdmin,
+    resolveSignedInUserProfile,
+    isUsersCollectionEmpty,
+    sendPasswordResetEmailToUser,
     signOutUser,
     addDocument,
     getCollection,
@@ -40,14 +42,14 @@ import {
     updateUserRole,
     updateUserLeaveDays,
     toggleUserStatus,
-    sendPasswordResetEmailToUser,
     sendLeaveRequestNotification,
     sendLeaveDecisionNotification,
     updateUserEmail,
     clearAllLeaveRequests,
     updateUserVerificationStatus,
     updateUser,
-    getDefaultPublicHolidaySet
+    getDefaultPublicHolidaySet,
+    listenToBranches,
 } from './services/firebaseService';
 import { emailService, sendLeaveCancellationRequestNotification, sendLeaveCancellationDecisionNotification } from './services/emailService';
 import { auth } from './services/firebaseConfig';
@@ -56,6 +58,7 @@ import LeaveSummary from './components/LeaveSummary';
 import RequesterLeaveInsight from './components/RequesterLeaveInsight';
 import UserManagement from './components/UserManagement';
 import DepartmentSettings from './components/DepartmentSettings';
+import BranchSettings from './components/BranchSettings';
 import UserProfile from './components/UserProfile';
 import Tools from './components/Tools';
 import EmailSetup from './components/EmailSetup';
@@ -63,10 +66,10 @@ import EmployeeUploadPage from './components/EmployeeUploadPage';
 import LeaveBalanceUpload from './components/LeaveBalanceUpload';
 import PublicHolidayUpload from './components/PublicHolidayUpload';
 import StatisticsView from './components/StatisticsView';
-import { getEmployeeByNumber } from './services/firebaseService';
 import { getPayGroup, resolveRequestPayGroup } from './utils/payGroupUtils';
 import { getLeaveTypeAccentClass, getLeaveTypeColor as getLeaveTypeChipClass } from './utils/leaveTypeStyles';
-import { DashboardIcon, CalendarIcon, HistoryIcon, CheckCircleIcon, UsersIcon, BuildingOfficeIcon, SparklesIcon, ChevronDownIcon, ChevronUpIcon, AppLogo, UserIcon, EyeIcon, EyeSlashIcon, MenuIcon, ArrowLeftIcon, UploadIcon, TrashIcon, XIcon, WrenchScrewdriverIcon, DocumentTextIcon } from './components/Icons';
+import { getEffectiveUserBranch, legacyEmpNumberBranchPrefix } from './utils/departmentSettingsHelpers';
+import { DashboardIcon, CalendarIcon, HistoryIcon, CheckCircleIcon, UsersIcon, BuildingOfficeIcon, SparklesIcon, ChevronDownIcon, ChevronUpIcon, AppLogo, UserIcon, MenuIcon, ArrowLeftIcon, UploadIcon, TrashIcon, XIcon, WrenchScrewdriverIcon, DocumentTextIcon } from './components/Icons';
 
 type DataLoadMode = 'full' | 'scoped';
 
@@ -406,11 +409,25 @@ const ChangelogView: React.FC = () => {
             <h1 className="text-3xl font-bold text-text-primary mb-6">Changelog</h1>
             
             <div className="space-y-8">
+                {/* Version 0.1.0-beta */}
+                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-2xl font-semibold text-text-primary">Version 0.1.0-beta</h2>
+                        <span className="text-sm text-text-muted">18 Sep 2026 (Latest)</span>
+                    </div>
+                    <ul className="space-y-2 text-text-secondary">
+                        <li>• HHMB LeaveApp beta: Harrisons Holdings (Malaysia) Berhad branding and @harrisons.com.my email sign-in</li>
+                        <li>• Manageable branches catalog in Firestore (Super Admin Branches page: add, edit, deactivate, delete with confirmation)</li>
+                        <li>• Employee registration requires an explicit branch selection; user.branch is stored on create (no emp-number prefix default)</li>
+                        <li>• Effective branch helper: branchOverride → branch → legacy emp-number prefix; UI filters use Firestore branch options</li>
+                    </ul>
+                </div>
+
                 {/* Version 1.5.1 */}
                 <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
                     <div className="flex items-center justify-between mb-4">
                         <h2 className="text-2xl font-semibold text-text-primary">Version 1.5.1</h2>
-                        <span className="text-sm text-text-muted">22 Jul 2026, 4:07 PM (Latest)</span>
+                        <span className="text-sm text-text-muted">22 Jul 2026, 4:07 PM</span>
                     </div>
                     <ul className="space-y-2 text-text-secondary">
                         <li>• Dashboard: show latest iOS and Android app versions under the mobile store badges</li>
@@ -1643,20 +1660,19 @@ const LeaveTypeConfigView: React.FC<{ user: User }> = ({ user }) => {
 };
 
 // --- VIEW COMPONENTS ---
-type View = 'dashboard' | 'apply' | 'history' | 'approvals' | 'calendar' | 'profile' | 'users' | 'departments' | 'email-setup' | 'leave-type-config' | 'employee-upload' | 'leave-balance-upload' | 'public-holidays' | 'changelog' | 'statistics';
+type View = 'dashboard' | 'apply' | 'history' | 'approvals' | 'calendar' | 'profile' | 'users' | 'departments' | 'branches' | 'email-setup' | 'leave-type-config' | 'employee-upload' | 'leave-balance-upload' | 'public-holidays' | 'changelog' | 'statistics' | 'tools';
 
 // Component for assigning department to a user (used in TO DO section)
 const UserDepartmentAssignmentItem: React.FC<{
     targetUser: User;
     departments: Department[];
-    getBranch: (employeeNumber: string) => string;
     onUserUpdate: () => void;
-}> = ({ targetUser, departments, getBranch, onUserUpdate }) => {
+}> = ({ targetUser, departments, onUserUpdate }) => {
     const [selectedDeptId, setSelectedDeptId] = useState('');
     const [isSaving, setIsSaving] = useState(false);
     
     // Get departments for this user's branch, sorted by name
-    const userBranch = getBranch(targetUser.employeeNumber);
+    const userBranch = getEffectiveUserBranch(targetUser);
     const availableDepartments = useMemo(
         () =>
             departments
@@ -1875,11 +1891,6 @@ const DashboardView: React.FC<{ user: User; requests: LeaveRequest[]; requestsLo
 
             {/* TO DO Section for Super Admin Users - Users without Department */}
             {user.role === UserRole.SUPER_ADMIN && (() => {
-                // Helper function to extract branch from employee number
-                const getBranch = (employeeNumber: string): string => {
-                    return employeeNumber.substring(0, 2);
-                };
-
                 // Super Admin sees all users without department
                 const usersWithoutDepartment = users.filter(u => {
                     if (!u.employeeNumber || u.employeeNumber.length < 2) return false;
@@ -1905,7 +1916,6 @@ const DashboardView: React.FC<{ user: User; requests: LeaveRequest[]; requestsLo
                                         key={targetUser.id}
                                         targetUser={targetUser}
                                         departments={departments}
-                                        getBranch={getBranch}
                                         onUserUpdate={onUserUpdate}
                                     />
                                 ))}
@@ -2511,9 +2521,9 @@ const HistoryView: React.FC<{
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
     
-    // Helper function to extract branch from employee number (first 2 characters)
-    const getBranch = (employeeNumber: string): string => {
-        return employeeNumber.substring(0, 2);
+    const getBranchForUser = (u?: User | null, employeeNumber?: string): string => {
+        if (u) return getEffectiveUserBranch(u);
+        return legacyEmpNumberBranchPrefix(employeeNumber);
     };
 
     const getRequestPayGroup = (request: LeaveRequest): string =>
@@ -3093,16 +3103,20 @@ const ApprovalsView: React.FC<{
     const getRequestPayGroup = (request: LeaveRequest): string =>
         resolveRequestPayGroup(request, getRequesterInfo(request).requester);
     
-    // Helper function to extract branch from employee number (first 2 characters)
-    const getBranch = (employeeNumber: string): string => {
-        return employeeNumber.substring(0, 2);
+    // Helper: effective branch for a user profile (or legacy emp-number prefix for deleted users)
+    const getBranchForUser = (u?: User | null, employeeNumber?: string): string => {
+        if (u) return getEffectiveUserBranch(u);
+        return legacyEmpNumberBranchPrefix(employeeNumber);
     };
     
     // Get the current user's assigned branches (for Admin role) or own branch
     const userAssignedBranches = user.role === UserRole.ADMIN && user.branches && user.branches.length > 0
         ? user.branches
         : user.role === UserRole.ADMIN
-        ? [getBranch(user.employeeNumber)] // Fallback to own branch if no branches assigned
+        ? (() => {
+            const own = getEffectiveUserBranch(user);
+            return own ? [own] : [];
+          })()
         : [];
     
     // Get requests that need approval from this user
@@ -3944,9 +3958,9 @@ const CalendarView: React.FC<{
         return Array.from(ids);
     }, [user, departments]);
 
-    // Helper function to extract branch from employee number (first 2 characters)
-    const getBranch = (employeeNumber: string): string => {
-        return employeeNumber.substring(0, 2);
+    const getBranchForUser = (u?: User | null, employeeNumber?: string): string => {
+        if (u) return getEffectiveUserBranch(u);
+        return legacyEmpNumberBranchPrefix(employeeNumber);
     };
 
     const getRequestPayGroup = (request: LeaveRequest): string =>
@@ -3984,7 +3998,7 @@ const CalendarView: React.FC<{
                     )
                 ).sort();
             }
-            return user.employeeNumber ? [getBranch(user.employeeNumber)] : [];
+            return (() => { const own = getEffectiveUserBranch(user); return own ? [own] : []; })();
         } else {
             // For NORMAL: show branches from departments where they are approvers
             const approverDepartments = departments.filter(dept => dept.approverIds?.includes(user.id));
@@ -4054,7 +4068,7 @@ const CalendarView: React.FC<{
         // Always show the user's own leave entries (even if they lack a department)
         if (isSelf) {
             if (branchFilter !== 'all' && requesterEmployeeNumber) {
-                const requesterBranch = getBranch(requesterEmployeeNumber);
+                const requesterBranch = getBranchForUser(requester, requesterEmployeeNumber);
                 if (requesterBranch !== branchFilter) return false;
             }
             if (departmentFilter !== 'all' && requesterDepartmentId && requesterDepartmentId !== departmentFilter) {
@@ -4078,7 +4092,7 @@ const CalendarView: React.FC<{
             if (requesterDepartment?.approverIds?.includes(user.id)) {
                 // Check branch and department filters
                 if (branchFilter !== 'all' && requesterEmployeeNumber) {
-                    const requesterBranch = getBranch(requesterEmployeeNumber);
+                    const requesterBranch = getBranchForUser(requester, requesterEmployeeNumber);
                     if (requesterBranch !== branchFilter) return false;
                 }
                 if (departmentFilter !== 'all' && requesterDepartmentId !== departmentFilter) {
@@ -4098,7 +4112,7 @@ const CalendarView: React.FC<{
         
         // Filter by branch if specified
         if (branchFilter !== 'all' && requesterEmployeeNumber) {
-            const requesterBranch = getBranch(requesterEmployeeNumber);
+            const requesterBranch = getBranchForUser(requester, requesterEmployeeNumber);
             if (requesterBranch !== branchFilter) return false;
         }
         
@@ -4339,7 +4353,7 @@ const CalendarView: React.FC<{
                     }
 
                     if (branchFilter !== 'all') {
-                        const userBranch = getBranch(u.employeeNumber);
+                        const userBranch = getEffectiveUserBranch(u);
                         if (userBranch !== branchFilter) return false;
                     }
 
@@ -4359,7 +4373,7 @@ const CalendarView: React.FC<{
                 const isSelf = u.id === user.id;
 
                 if (branchFilter !== 'all') {
-                    const userBranch = getBranch(u.employeeNumber);
+                    const userBranch = getEffectiveUserBranch(u);
                     if (userBranch !== branchFilter) return false;
                 }
 
@@ -4817,7 +4831,7 @@ const CalendarView: React.FC<{
 
 // --- AUTHENTICATION COMPONENTS ---
 const AuthFormContainer: React.FC<{ title: string, children: React.ReactNode }> = ({ title, children }) => {
-    const appVersion = '1.5.1'; // Application version
+    const appVersion = '0.1.0-beta';
     return (
         <div className="min-h-screen flex items-center justify-center bg-background animate-fade-in">
             <div className="w-full max-w-md p-8 space-y-8 bg-surface rounded-xl shadow-lg">
@@ -4826,365 +4840,255 @@ const AuthFormContainer: React.FC<{ title: string, children: React.ReactNode }> 
                         <AppLogo className="h-16 w-auto" />
                     </div>
                     <h2 className="text-3xl font-bold text-text-primary">{title}</h2>
+                    <p className="mt-2 text-xs font-medium tracking-[0.15em] uppercase text-text-muted">
+                        Harrisons Holdings (Malaysia) Berhad
+                    </p>
                 </div>
                 {children}
                 <div className="text-center pt-4">
-                    <p className="text-slate-400 text-sm">© 2026 LeaveApp | v{appVersion}</p>
+                    <p className="text-slate-400 text-sm">© 2026 Harrisons Holdings (Malaysia) Berhad | v{appVersion}</p>
                 </div>
             </div>
         </div>
     );
 };
 
-const LoginView: React.FC<{ onSwitchToSignUp: () => void }> = ({ onSwitchToSignUp }) => {
-    const [employeeNumber, setEmployeeNumber] = useState('');
+const LoginView: React.FC = () => {
+    const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [name, setName] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+    const [isSigningIn, setIsSigningIn] = useState(false);
+    const [showForgotPassword, setShowForgotPassword] = useState(false);
+    const [needsBootstrap, setNeedsBootstrap] = useState(false);
+    const [checkingBootstrap, setCheckingBootstrap] = useState(true);
+
+    useEffect(() => {
+        isUsersCollectionEmpty()
+            .then((empty) => setNeedsBootstrap(empty))
+            .catch(() => setNeedsBootstrap(false))
+            .finally(() => setCheckingBootstrap(false));
+    }, []);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
         setSuccess('');
+        setIsSigningIn(true);
         try {
-            const userCredential = await signInUser(employeeNumber, password);
-            
-            // Email verification is not required - users can sign in immediately
+            await signInUser(email, password);
         } catch (err: any) {
             console.error('Sign-in error:', err);
-            let errorMessage = 'Failed to sign in.';
-            
-            if (err.code === 'auth/user-not-found') {
-                errorMessage = 'No account found with this employee number.';
-            } else if (err.code === 'auth/wrong-password') {
-                errorMessage = 'Incorrect password.';
-            } else if (err.code === 'auth/invalid-email') {
-                errorMessage = 'Invalid employee number format.';
-            } else if (err.code === 'auth/user-disabled') {
-                errorMessage = 'This account has been disabled.';
-            } else if (err.code === 'auth/too-many-requests') {
-                errorMessage = 'Too many failed attempts. Please try again later.';
-            } else if (err.code === 'auth/network-request-failed') {
-                errorMessage = 'Network error. Please check your connection.';
-            } else if (err.code === 'auth/invalid-credential') {
-                errorMessage = 'Invalid employee number or password. If you created your account with an email address, please contact administrator for assistance.';
-            } else if (err.code === 'auth/operation-not-allowed') {
-                errorMessage = 'Email/password sign-in is not enabled. Please contact support.';
-            } else if (err.code === 'auth/weak-password') {
-                errorMessage = 'Password is too weak.';
-            } else if (err.message && (err.message.includes('INVALID_LOGIN_CREDENTIALS') || err.message.includes('400'))) {
-                errorMessage = 'Invalid employee number or password. Please check your credentials.';
-            } else if (err.message) {
-                errorMessage = `Sign-in failed: ${err.message}`;
+            let message = 'Failed to sign in.';
+            if (err?.code === 'auth/invalid-credential' || err?.code === 'auth/wrong-password' || err?.code === 'auth/user-not-found') {
+                message = 'Invalid email or password.';
+            } else if (err?.code === 'auth/too-many-requests') {
+                message = 'Too many failed attempts. Please try again later.';
+            } else if (err?.code === 'auth/operation-not-allowed') {
+                message = 'Email/password sign-in is not enabled. Enable it in Firebase Authentication.';
+            } else if (err?.message) {
+                message = err.message;
             }
-            
-            setError(errorMessage);
+            setError(message);
+        } finally {
+            setIsSigningIn(false);
         }
     };
 
-    const handlePasswordReset = async (resetEmployeeNumber: string) => {
-        if (!resetEmployeeNumber.trim()) {
-            setError('Please enter your employee number.');
-            return;
-        }
-        
-        try {
-            // Generate email from employee number for password reset
-            const { generateEmailFromEmployeeNumber } = await import('./services/firebaseService');
-            const email = generateEmailFromEmployeeNumber(resetEmployeeNumber);
-            await sendPasswordResetEmailToUser(email);
-            setSuccess('Password reset email sent! Check your inbox.');
-            setShowPasswordReset(false);
-        } catch (err: any) {
-            setError('Failed to send password reset email. Please contact administrator.');
-        }
-    };
-
-        return (
-        <AuthFormContainer title="LeaveApp">
-            <form onSubmit={handleLogin} className="space-y-4">
-                    <input 
-                        type="text" 
-                        placeholder="Employee Number" 
-                        value={employeeNumber} 
-                    onChange={(e) => setEmployeeNumber(e.target.value)}
-                        required 
-                        className="w-full bg-surface-light border-border rounded-md p-3 focus:ring-primary focus:border-primary"
-                    />
-                <input
-                    type="password"
-                    placeholder="Password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    className="w-full bg-surface-light border-border rounded-md p-3 focus:ring-primary focus:border-primary"
-                />
-                <button type="submit" className="w-full bg-primary text-white font-bold py-3 px-4 rounded-md hover:bg-primary-focus transition-colors">
-                    Sign In
-                        </button>
-                </form>
-            
-            {error && <p className="text-red-500 text-base">{error}</p>}
-            {success && <p className="text-green-500 text-sm">{success}</p>}
-            
-            <div className="text-center space-y-2">
-                        <button 
-                        onClick={() => {
-                            setSuccess('');
-                            setError('For password reset, please contact your system administrator.');
-                        }}
-                    className="text-primary hover:text-primary-focus text-sm"
-                        >
-                        Forgot your password?
-                        </button>
-                <p className="text-text-muted text-sm">
-                    Don't have an account?{' '}
-                    <button onClick={onSwitchToSignUp} className="text-primary hover:text-primary-focus">
-                        Sign up
-                    </button>
-                </p>
-                    </div>
-        </AuthFormContainer>
-    );
-};
-
-const SignUpView: React.FC<{ onSwitchToLogin: () => void; onSignUpSuccess?: () => void }> = ({ onSwitchToLogin, onSignUpSuccess }) => {
-    const [employeeNumber, setEmployeeNumber] = useState('');
-    const [name, setName] = useState('');
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [confirmPassword, setConfirmPassword] = useState('');
-    const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
-    const [isLookingUp, setIsLookingUp] = useState(false);
-    const [showPassword, setShowPassword] = useState(false);
-    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-    
-    const handleEmployeeNumberChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const value = e.target.value.trim();
-        setEmployeeNumber(value);
-        setName(''); // Clear name when employee number changes
-        
-        if (value) {
-            setIsLookingUp(true);
-            setError('');
-            
-            // Lookup employee name from Firebase
-            try {
-                const employee = await getEmployeeByNumber(value);
-                if (employee) {
-                    setName(employee.employeeName);
-                    setError('');
-                    
-                    // Check if employee number already has an account (optional check, fails gracefully if no permission)
-                    // This check requires authentication, so we'll skip it for unauthenticated users
-                    // The actual duplicate check will happen during account creation in Firebase Auth
-                    checkEmployeeNumberExists(value).then(exists => {
-                        if (exists) {
-                            setError('An account with this employee number already exists.');
-                        }
-                    }).catch((checkErr: any) => {
-                        // Permission denied is expected for unauthenticated users - ignore it
-                        // The duplicate check will happen during sign-up anyway
-                        if (checkErr.code !== 'permission-denied') {
-                            console.warn('Could not check for duplicate employee number:', checkErr);
-                        }
-                    });
-                } else {
-                    setError('Employee number not found in master list. Please check the number or contact administrator.');
-                }
-            } catch (err: any) {
-                console.error('Employee lookup error:', err);
-                if (err.code === 'permission-denied' || err.message?.includes('permissions')) {
-                    setError('Permission denied. Please contact administrator to configure Firestore security rules. The employees collection needs public read access for sign-up.');
-                } else {
-                    setError('Failed to lookup employee. Please try again or contact administrator.');
-                }
-            } finally {
-                setIsLookingUp(false);
-            }
-        }
-    };
-    
-    const handleSignUp = async (e: React.FormEvent) => {
+    const handleBootstrap = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
         setSuccess('');
-        setIsLoading(true);
-
-        // Validation
-        if (!employeeNumber.trim()) {
-            setError('Please enter your employee number.');
-            setIsLoading(false);
-            return;
-        }
-
-        if (!name.trim()) {
-            setError('Employee number not found. Please check your employee number.');
-            setIsLoading(false);
-            return;
-        }
-
-        if (!email.trim()) {
-            setError('Please enter your email address.');
-            setIsLoading(false);
-            return;
-        }
-
-        if (!email.includes('@')) {
-            setError('Please enter a valid email address.');
-            setIsLoading(false);
-            return;
-        }
-
-        // Optional email domain allowlist (VITE_ALLOWED_EMAIL_DOMAIN)
-        const allowedDomain = (import.meta.env.VITE_ALLOWED_EMAIL_DOMAIN || '').trim().toLowerCase().replace(/^@/, '');
-        if (allowedDomain && !email.toLowerCase().endsWith(`@${allowedDomain}`)) {
-            setError(`Only email addresses from @${allowedDomain} are allowed.`);
-            setIsLoading(false);
-            return;
-        }
-
         if (password !== confirmPassword) {
             setError('Passwords do not match.');
-            setIsLoading(false);
             return;
         }
-
-        if (password.length < 6) {
-            setError('Password must be at least 6 characters long.');
-            setIsLoading(false);
-            return;
-        }
-
+        setIsSigningIn(true);
         try {
-            const firebaseUser = await signUpUser(employeeNumber, email, password, { name });
-            
-            // User is already authenticated after signUpUser
-            // Manually trigger auth state update to ensure immediate redirect
-            if (onSignUpSuccess) {
-                // Wait a moment for Firestore document to be fully written
-                await new Promise(resolve => setTimeout(resolve, 500));
-                onSignUpSuccess();
-            }
-            
-            // Clear form
-            setEmployeeNumber('');
-            setName('');
-            setEmail('');
-            setPassword('');
-            setConfirmPassword('');
+            await bootstrapSuperAdmin(name, email, password);
+            setNeedsBootstrap(false);
         } catch (err: any) {
-            let errorMessage = 'Failed to create account.';
-            
-            if (err.message && err.message.includes('already exists')) {
-                errorMessage = err.message;
-            } else if (err.code === 'auth/email-already-in-use') {
-                // This shouldn't happen now since we use unique emails per employee number
-                // But if it does, it means the employee number already has an account
-                errorMessage = 'An account with this employee number already exists.';
-            } else if (err.code === 'auth/invalid-email') {
-                errorMessage = 'Invalid email address.';
-            } else if (err.code === 'auth/weak-password') {
-                errorMessage = 'Password is too weak. Please choose a stronger password.';
-            } else if (err.code === 'auth/network-request-failed') {
-                errorMessage = 'Network error. Please check your connection.';
-            } else if (err.code === 'permission-denied' || err.message?.includes('Unable to verify')) {
-                errorMessage = err.message || 'Permission denied. Please contact administrator.';
-            } else if (err.message) {
-                errorMessage = err.message;
-            }
-            
-            setError(errorMessage);
+            setError(err?.message || 'Failed to create administrator account.');
         } finally {
-            setIsLoading(false);
+            setIsSigningIn(false);
         }
     };
 
-    return (
-        <AuthFormContainer title="Sign Up">
-            <form onSubmit={handleSignUp} className="space-y-4">
-                <div>
+    const handleForgotPassword = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError('');
+        setSuccess('');
+        if (!email.trim()) {
+            setError('Enter your email address first.');
+            return;
+        }
+        setIsSigningIn(true);
+        try {
+            await sendPasswordResetEmailToUser(email);
+            setSuccess('If an account exists for that email, a password reset link has been sent.');
+        } catch (err: any) {
+            setError(err?.message || 'Failed to send password reset email.');
+        } finally {
+            setIsSigningIn(false);
+        }
+    };
+
+    if (checkingBootstrap) {
+        return (
+            <AuthFormContainer title="LeaveApp">
+                <p className="text-center text-text-secondary text-sm">Loading…</p>
+            </AuthFormContainer>
+        );
+    }
+
+    if (needsBootstrap) {
+        return (
+            <AuthFormContainer title="LeaveApp">
+                <form onSubmit={handleBootstrap} className="space-y-4">
+                    <p className="text-sm text-text-secondary text-center">
+                        Create the first Super Admin account for Harrisons Holdings (Malaysia) Berhad.
+                    </p>
                     <input
                         type="text"
-                        placeholder="Employee Number"
-                        value={employeeNumber}
-                        onChange={handleEmployeeNumberChange}
+                        placeholder="Full name"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
                         required
                         className="w-full bg-surface-light border-border rounded-md p-3 focus:ring-primary focus:border-primary"
                     />
-                    {isLookingUp && (
-                        <p className="text-sm text-text-secondary mt-1">Looking up employee...</p>
-                    )}
-                </div>
-                <input
-                    type="text"
-                    placeholder="Full Name"
-                    value={name}
-                    readOnly
-                    className="w-full bg-surface-light border-border rounded-md p-3 focus:ring-primary focus:border-primary opacity-75 cursor-not-allowed"
-                />
-                <input
-                    type="email"
-                    placeholder="Email Address"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    className="w-full bg-surface-light border-border rounded-md p-3 focus:ring-primary focus:border-primary"
-                />
-                <div className="relative">
                     <input
-                        type={showPassword ? "text" : "password"}
-                        placeholder="Password (min. 6 characters)"
+                        type="email"
+                        placeholder="Email (@harrisons.com.my)"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                        autoComplete="email"
+                        className="w-full bg-surface-light border-border rounded-md p-3 focus:ring-primary focus:border-primary"
+                    />
+                    <input
+                        type="password"
+                        placeholder="Password (min 6 characters)"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
-                        className="w-full bg-surface-light border-border rounded-md p-3 pr-10 focus:ring-primary focus:border-primary"
+                        minLength={6}
+                        autoComplete="new-password"
+                        className="w-full bg-surface-light border-border rounded-md p-3 focus:ring-primary focus:border-primary"
                     />
-                    <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-text-muted hover:text-text-primary"
-                    >
-                        {showPassword ? <EyeSlashIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
-                    </button>
-                </div>
-                <div className="relative">
                     <input
-                        type={showConfirmPassword ? "text" : "password"}
-                        placeholder="Confirm Password"
+                        type="password"
+                        placeholder="Confirm password"
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         required
-                        className="w-full bg-surface-light border-border rounded-md p-3 pr-10 focus:ring-primary focus:border-primary"
+                        minLength={6}
+                        autoComplete="new-password"
+                        className="w-full bg-surface-light border-border rounded-md p-3 focus:ring-primary focus:border-primary"
                     />
                     <button
-                        type="button"
-                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-text-muted hover:text-text-primary"
+                        type="submit"
+                        disabled={isSigningIn}
+                        className="w-full bg-primary text-white font-bold py-3 px-4 rounded-md hover:bg-primary-focus transition-colors disabled:opacity-60"
                     >
-                        {showConfirmPassword ? <EyeSlashIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
+                        {isSigningIn ? 'Creating…' : 'Create Super Admin'}
                     </button>
-                </div>
-                <button 
-                    type="submit" 
-                    disabled={isLoading}
-                    className="w-full bg-primary text-white font-bold py-3 px-4 rounded-md hover:bg-primary-focus transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                    {isLoading ? 'Creating Account...' : 'Sign Up'}
-                </button>
-            </form>
-            
-            {error && <p className="text-red-500 text-sm">{error}</p>}
-            {success && <p className="text-green-500 text-sm">{success}</p>}
-            
-            <p className="text-text-muted text-sm text-center">
-                Already have an account?{' '}
-                <button onClick={onSwitchToLogin} className="text-primary hover:text-primary-focus">
-                    Sign in
-                </button>
-            </p>
+                    {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+                </form>
+            </AuthFormContainer>
+        );
+    }
+
+    return (
+        <AuthFormContainer title="LeaveApp">
+            {showForgotPassword ? (
+                <form onSubmit={handleForgotPassword} className="space-y-4">
+                    <p className="text-sm text-text-secondary">
+                        Enter your @harrisons.com.my email. Firebase will send a password reset link.
+                    </p>
+                    <input
+                        type="email"
+                        placeholder="Email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                        autoComplete="email"
+                        className="w-full bg-surface-light border-border rounded-md p-3 focus:ring-primary focus:border-primary"
+                    />
+                    <button
+                        type="submit"
+                        disabled={isSigningIn}
+                        className="w-full bg-primary text-white font-bold py-3 px-4 rounded-md hover:bg-primary-focus transition-colors disabled:opacity-60"
+                    >
+                        {isSigningIn ? 'Sending…' : 'Send reset link'}
+                    </button>
+                    <div className="text-center">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setShowForgotPassword(false);
+                                setError('');
+                                setSuccess('');
+                            }}
+                            className="text-primary hover:text-primary-focus text-sm"
+                        >
+                            Back to sign in
+                        </button>
+                    </div>
+                    {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+                    {success && <p className="text-green-600 text-sm text-center">{success}</p>}
+                </form>
+            ) : (
+                <form onSubmit={handleLogin} className="space-y-4">
+                    <p className="text-sm text-text-secondary text-center">
+                        Sign in with your @harrisons.com.my email. Accounts are created by your LeaveApp administrator.
+                    </p>
+                    <input
+                        type="email"
+                        placeholder="Email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                        autoComplete="email"
+                        className="w-full bg-surface-light border-border rounded-md p-3 focus:ring-primary focus:border-primary"
+                    />
+                    <input
+                        type="password"
+                        placeholder="Password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                        autoComplete="current-password"
+                        className="w-full bg-surface-light border-border rounded-md p-3 focus:ring-primary focus:border-primary"
+                    />
+                    <button
+                        type="submit"
+                        disabled={isSigningIn}
+                        className="w-full bg-primary text-white font-bold py-3 px-4 rounded-md hover:bg-primary-focus transition-colors disabled:opacity-60"
+                    >
+                        {isSigningIn ? 'Signing in…' : 'Sign In'}
+                    </button>
+                    {error && <p className="text-red-500 text-sm text-center">{error}</p>}
+                    {success && <p className="text-green-600 text-sm text-center">{success}</p>}
+                    <div className="text-center space-y-2 pt-1">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setShowForgotPassword(true);
+                                setError('');
+                                setSuccess('');
+                            }}
+                            className="text-primary hover:text-primary-focus text-sm"
+                        >
+                            Forgot your password?
+                        </button>
+                        <p className="text-text-muted text-sm">
+                            Need an account? Ask your branch LeaveApp administrator to register your email.
+                        </p>
+                    </div>
+                </form>
+            )}
         </AuthFormContainer>
     );
 };
@@ -5302,10 +5206,12 @@ const AppShell: React.FC<{
     departmentsLoaded: boolean;
     leaveRequests: LeaveRequest[];
     leaveRequestsLoaded: boolean;
+    branches: Branch[];
     onReloadData: () => void;
     onUpdateCurrentUser: (userId: string) => Promise<void>;
     onLocalUserUpdate: (updatedUser: User) => void;
-}> = ({ currentUser, users, departments, departmentsLoaded, leaveRequests, leaveRequestsLoaded, onReloadData, onUpdateCurrentUser, onLocalUserUpdate }) => {
+    onBranchesReload?: () => void;
+}> = ({ currentUser, users, departments, departmentsLoaded, leaveRequests, leaveRequestsLoaded, branches, onReloadData, onUpdateCurrentUser, onLocalUserUpdate, onBranchesReload }) => {
     const [activeView, setActiveView] = useState<View>('dashboard');
     const [sidebarMinimized, setSidebarMinimized] = useState(false);
     const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -5357,7 +5263,7 @@ const AppShell: React.FC<{
     useEffect(() => {
         const handleHashChange = () => {
             const hash = window.location.hash.slice(1); // Remove the '#'
-            if (hash && ['dashboard', 'apply', 'history', 'approvals', 'calendar', 'profile', 'users', 'departments', 'email-setup', 'leave-type-config', 'employee-upload', 'leave-balance-upload', 'public-holidays', 'statistics'].includes(hash)) {
+            if (hash && ['dashboard', 'apply', 'history', 'approvals', 'calendar', 'profile', 'users', 'departments', 'branches', 'email-setup', 'leave-type-config', 'employee-upload', 'leave-balance-upload', 'public-holidays', 'changelog', 'statistics', 'tools'].includes(hash)) {
                 setActiveView(hash as View);
             }
         };
@@ -5846,10 +5752,10 @@ const AppShell: React.FC<{
     );
 
     const Footer: React.FC = () => {
-        const appVersion = '1.5.1'; // Application version
+        const appVersion = '0.1.0-beta'; // Application version
         return (
             <footer className="bg-slate-800 border-t border-slate-700 p-4 text-center">
-                <p className="text-slate-400 text-sm">© 2026 LeaveApp | v{appVersion}</p>
+                <p className="text-slate-400 text-sm">© 2026 Harrisons Holdings (Malaysia) Berhad | v{appVersion}</p>
             </footer>
         );
     };
@@ -5924,6 +5830,7 @@ const AppShell: React.FC<{
                         <>
                             <NavItem icon={<UsersIcon className="w-5 h-5"/>} label="User Management" view="users" isMobile />
                             <NavItem icon={<UploadIcon className="w-5 h-5"/>} label="Employee Upload" view="employee-upload" isMobile />
+                            <NavItem icon={<BuildingOfficeIcon className="w-5 h-5"/>} label="Branches" view="branches" isMobile />
                             <NavItem icon={<BuildingOfficeIcon className="w-5 h-5"/>} label="Departments" view="departments" isMobile />
                             <NavItem icon={<SparklesIcon className="w-5 h-5"/>} label="Email Setup" view="email-setup" isMobile />
                             <NavItem icon={<CheckCircleIcon className="w-5 h-5"/>} label="Leave Type Config" view="leave-type-config" isMobile />
@@ -5931,6 +5838,9 @@ const AppShell: React.FC<{
                             <NavItem icon={<span className="text-lg">📅</span>} label="Public Holidays" view="public-holidays" isMobile />
                             <NavItem icon={<WrenchScrewdriverIcon className="w-5 h-5"/>} label="Tools" view="tools" isMobile />
                         </>
+                    )}
+                    {currentUser.role === UserRole.ADMIN && (
+                        <NavItem icon={<UploadIcon className="w-5 h-5"/>} label="Employee Register" view="employee-upload" isMobile />
                     )}
                 </nav>
                 
@@ -5986,6 +5896,7 @@ const AppShell: React.FC<{
                         <>
                             <NavItem icon={<UsersIcon className="w-5 h-5"/>} label="User Management" view="users" />
                             <NavItem icon={<UploadIcon className="w-5 h-5"/>} label="Employee Upload" view="employee-upload" />
+                            <NavItem icon={<BuildingOfficeIcon className="w-5 h-5"/>} label="Branches" view="branches" />
                             <NavItem icon={<BuildingOfficeIcon className="w-5 h-5"/>} label="Departments" view="departments" />
                             <NavItem icon={<SparklesIcon className="w-5 h-5"/>} label="Email Setup" view="email-setup" />
                             <NavItem icon={<CheckCircleIcon className="w-5 h-5"/>} label="Leave Type Config" view="leave-type-config" />
@@ -5994,6 +5905,9 @@ const AppShell: React.FC<{
                             <NavItem icon={<WrenchScrewdriverIcon className="w-5 h-5"/>} label="Tools" view="tools" />
                             </>
                         )}
+                    {currentUser.role === UserRole.ADMIN && (
+                        <NavItem icon={<UploadIcon className="w-5 h-5"/>} label="Employee Register" view="employee-upload" />
+                    )}
                     </nav>
                 
                 <div className="p-3 border-t border-border flex-shrink-0">
@@ -6028,6 +5942,7 @@ const AppShell: React.FC<{
                          activeView === 'employee-upload' ? 'Employee Upload' :
                          activeView === 'leave-balance-upload' ? 'Leave Balance Upload' :
                          activeView === 'public-holidays' ? 'Public Holidays' :
+                         activeView === 'branches' ? 'Branches' :
                          activeView === 'departments' ? 'Departments' :
                          activeView === 'email-setup' ? 'Email Setup' :
                          activeView === 'leave-type-config' ? 'Leave Type Config' :
@@ -6054,15 +5969,33 @@ const AppShell: React.FC<{
                     ) && <AccessDeniedView pageName="Approvals" />}
                     {activeView === 'calendar' && <CalendarView user={currentUser} requests={leaveRequests} users={users} departments={departments} />}
                     {activeView === 'profile' && <UserProfile user={currentUser} departments={departments} onProfileUpdate={handleProfileUpdate} />}
-                    {activeView === 'users' && currentUser.role === UserRole.SUPER_ADMIN && <UserManagement users={users} departments={departments} currentUser={currentUser} onUserUpdate={handleUserUpdate} />}
+                    {activeView === 'users' && currentUser.role === UserRole.SUPER_ADMIN && <UserManagement users={users} departments={departments} currentUser={currentUser} branches={branches} onUserUpdate={handleUserUpdate} />}
                     {activeView === 'users' && currentUser.role !== UserRole.SUPER_ADMIN && <AccessDeniedView pageName="User Management" />}
-                    {activeView === 'employee-upload' && currentUser.role === UserRole.SUPER_ADMIN && <EmployeeUploadPage users={users} onUploadComplete={handleUserUpdate} />}
-                    {activeView === 'employee-upload' && currentUser.role !== UserRole.SUPER_ADMIN && <AccessDeniedView pageName="Employee Upload" />}
+                    {activeView === 'employee-upload' && (currentUser.role === UserRole.SUPER_ADMIN || currentUser.role === UserRole.ADMIN) && (
+                        <EmployeeUploadPage
+                            users={users}
+                            departments={departments}
+                            currentUser={currentUser}
+                            branches={branches}
+                            onUploadComplete={handleUserUpdate}
+                        />
+                    )}
+                    {activeView === 'employee-upload' && currentUser.role !== UserRole.SUPER_ADMIN && currentUser.role !== UserRole.ADMIN && (
+                        <AccessDeniedView pageName="Employee Upload" />
+                    )}
                     {activeView === 'leave-balance-upload' && currentUser.role === UserRole.SUPER_ADMIN && <LeaveBalanceUpload currentUser={currentUser} users={users} onUploadComplete={handleUserUpdate} />}
                     {activeView === 'leave-balance-upload' && currentUser.role !== UserRole.SUPER_ADMIN && <AccessDeniedView pageName="Leave Balance Upload" />}
                     {activeView === 'public-holidays' && currentUser.role === UserRole.SUPER_ADMIN && <PublicHolidayUpload currentUser={currentUser} onUploadComplete={handleReloadPublicHolidays} />}
                     {activeView === 'public-holidays' && currentUser.role !== UserRole.SUPER_ADMIN && <AccessDeniedView pageName="Public Holidays" />}
-                    {activeView === 'departments' && currentUser.role === UserRole.SUPER_ADMIN && <DepartmentSettings departments={departments} users={users} onDepartmentUpdate={handleDepartmentUpdate} />}
+                    {activeView === 'branches' && currentUser.role === UserRole.SUPER_ADMIN && (
+                        <BranchSettings branches={branches} onBranchesChange={onBranchesReload} />
+                    )}
+                    {activeView === 'branches' && currentUser.role !== UserRole.SUPER_ADMIN && (
+                        <AccessDeniedView pageName="Branches" />
+                    )}
+                    {activeView === 'departments' && currentUser.role === UserRole.SUPER_ADMIN && (
+                        <DepartmentSettings departments={departments} users={users} branches={branches} onDepartmentUpdate={handleDepartmentUpdate} />
+                    )}
                     {activeView === 'departments' && currentUser.role !== UserRole.SUPER_ADMIN && <AccessDeniedView pageName="Departments" />}
                     {activeView === 'email-setup' && currentUser.role === UserRole.SUPER_ADMIN && <EmailSetup currentUser={currentUser} />}
                     {activeView === 'email-setup' && currentUser.role !== UserRole.SUPER_ADMIN && <AccessDeniedView pageName="Email Setup" />}
@@ -6075,7 +6008,7 @@ const AppShell: React.FC<{
                         (currentUser.role === UserRole.NORMAL && departments.some(d => d.approverIds?.includes(currentUser.id))) ||
                         currentUser.role === UserRole.ADMIN ||
                         currentUser.role === UserRole.SUPER_ADMIN
-                    ) && <StatisticsView currentUser={currentUser} users={users} departments={departments} leaveRequests={leaveRequests} />}
+                    ) && <StatisticsView currentUser={currentUser} users={users} departments={departments} leaveRequests={leaveRequests} branches={branches} />}
                     {activeView === 'statistics' && !(
                         (currentUser.role === UserRole.NORMAL && departments.some(d => d.approverIds?.includes(currentUser.id))) ||
                         currentUser.role === UserRole.ADMIN ||
@@ -6098,15 +6031,24 @@ const AppShell: React.FC<{
 // --- MAIN APP COMPONENT ---
 const App: React.FC = () => {
     const [authState, setAuthState] = useState<{ status: 'loading' | 'signedIn' | 'signedOut'; user: User | null }>({ status: 'loading', user: null });
-    const [authView, setAuthView] = useState<'login' | 'signup'>('login');
     
     const [users, setUsers] = useState<User[]>([]);
     const [departments, setDepartments] = useState<Department[]>([]);
     const [departmentsLoaded, setDepartmentsLoaded] = useState(false);
     const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
     const [leaveRequestsLoaded, setLeaveRequestsLoaded] = useState(false);
+    const [branches, setBranches] = useState<Branch[]>([]);
     const scopedSelfRef = useRef<User | null>(null);
     const scopedApproversRef = useRef<User[]>([]);
+
+    const reloadBranches = useCallback(async () => {
+        try {
+            const list = await getCollection<Branch>('branches');
+            setBranches(list.sort((a, b) => a.code.localeCompare(b.code)));
+        } catch (error) {
+            console.error('Failed to reload branches:', error);
+        }
+    }, []);
 
     const handleLocalUserUpdate = (updatedUser: User) => {
         setUsers(prevUsers =>
@@ -6141,54 +6083,22 @@ const App: React.FC = () => {
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(async (firebaseUser) => {
             if (firebaseUser) {
-                // User is signed in, fetch their data from Firestore
-            try {
-                    // Wait for Firestore document to be ready (especially after sign-up)
-                    let userDoc = await getDocument('users', firebaseUser.uid);
-                    let retries = 0;
-                    const maxRetries = 10; // Increased retries for sign-up
-                    while (!userDoc && retries < maxRetries) {
-                        // Wait 300ms and retry (for newly created users)
-                        await new Promise(resolve => setTimeout(resolve, 300));
-                        userDoc = await getDocument('users', firebaseUser.uid);
-                        retries++;
-                    }
-                    
-                    if (userDoc) {
-                        const userData = userDoc as User;
-
-                        // Check if email verification status needs to be synced
-                        const firebaseEmailVerified = firebaseUser.emailVerified;
-                        const firestoreEmailVerified = (userData as any).emailVerified;
-                        
-                        // If Firebase shows verified but Firestore doesn't, update Firestore
-                        if (firebaseEmailVerified && !firestoreEmailVerified) {
-                            console.log('Syncing email verification status to Firestore...');
-                            await updateUserVerificationStatus(firebaseUser.uid, true);
-                            // Update the local userData to reflect the change
-                            (userData as any).emailVerified = true;
-                        }
-                        
-                        setAuthState({
-                            status: 'signedIn',
-                            user: { 
-                                ...userData, 
-                                id: firebaseUser.uid, 
-                                // Always use the user-provided email from Firestore, not the generated @system.local email
-                                email: userData.email || firebaseUser.email || '',
-                                emailVerified: firebaseEmailVerified // Use Firebase as source of truth
-                            } as User
-                        });
-                } else {
-                        // User exists in Firebase Auth but not in Firestore (shouldn't happen)
-                    setAuthState({ status: 'signedOut', user: null });
-                }
-            } catch (error) {
-                    console.error('Error fetching user data:', error);
+                try {
+                    const profile = await resolveSignedInUserProfile(firebaseUser);
+                    setAuthState({
+                        status: 'signedIn',
+                        user: {
+                            ...profile,
+                            id: firebaseUser.uid,
+                            email: profile.email || firebaseUser.email || '',
+                            emailVerified: firebaseUser.emailVerified
+                        } as User
+                    });
+                } catch (error) {
+                    console.error('Error resolving signed-in user profile:', error);
                     setAuthState({ status: 'signedOut', user: null });
                 }
             } else {
-                // User is signed out
                 setAuthState({ status: 'signedOut', user: null });
             }
         });
@@ -6271,13 +6181,18 @@ const App: React.FC = () => {
                 setDepartments(fetchedDepartments as Department[]);
                 setDepartmentsLoaded(true);
             });
+            const unsubscribeBranches = listenToBranches((fetchedBranches) => {
+                setBranches(fetchedBranches);
+            });
 
             return () => {
                 unsubscribeDepartments();
+                unsubscribeBranches();
             };
         } else {
             setDepartments([]);
             setDepartmentsLoaded(false);
+            setBranches([]);
         }
     }, [authState.status]);
 
@@ -6362,32 +6277,38 @@ const App: React.FC = () => {
             departmentsLoaded={departmentsLoaded}
             leaveRequests={leaveRequests}
             leaveRequestsLoaded={leaveRequestsLoaded}
+            branches={branches}
+            onBranchesReload={reloadBranches}
             onReloadData={async () => {
                 if (!authState.user) return;
                 try {
                     const mode = resolveDataLoadMode(authState.user, departments);
                     if (mode === 'full') {
-                        const [usersData, departmentsData, requestsData] = await Promise.all([
+                        const [usersData, departmentsData, requestsData, branchesData] = await Promise.all([
                             getCollection<User>('users'),
                             getCollection<Department>('departments'),
-                            getCollection<LeaveRequest>('leaveRequests')
+                            getCollection<LeaveRequest>('leaveRequests'),
+                            getCollection<Branch>('branches')
                         ]);
                         setUsers(usersData);
                         setDepartments(departmentsData);
                         setLeaveRequests(requestsData);
+                        setBranches(branchesData.sort((a, b) => a.code.localeCompare(b.code)));
                     } else {
                         const user = authState.user;
                         const userDept = departments.find(d => d.id === user.departmentId);
                         const approverIds = userDept?.approverIds || [];
-                        const [selfDoc, requestsData, approvers] = await Promise.all([
+                        const [selfDoc, requestsData, approvers, branchesData] = await Promise.all([
                             getDocument<User>('users', user.id),
                             getLeaveRequestsForUser(user.id),
-                            fetchUsersByIds(approverIds)
+                            fetchUsersByIds(approverIds),
+                            getCollection<Branch>('branches')
                         ]);
                         scopedSelfRef.current = selfDoc;
                         scopedApproversRef.current = approvers;
                         setUsers(mergeScopedUsers(selfDoc, approvers));
                         setLeaveRequests(requestsData);
+                        setBranches(branchesData.sort((a, b) => a.code.localeCompare(b.code)));
                     }
                 } catch (error) {
                     console.error('Failed to reload data:', error);
@@ -6408,40 +6329,7 @@ const App: React.FC = () => {
         />;
     }
 
-    return authView === 'login' 
-        ? <LoginView onSwitchToSignUp={() => setAuthView('signup')} /> 
-        : <SignUpView 
-            onSwitchToLogin={() => setAuthView('login')} 
-            onSignUpSuccess={async () => {
-                // Manually trigger auth state update after sign-up
-                // Get current Firebase user
-                const { auth } = await import('./services/firebaseConfig');
-                const currentUser = auth.currentUser;
-                if (currentUser) {
-                    // Fetch user document with retries
-                    let userDoc = await getDocument('users', currentUser.uid);
-                    let retries = 0;
-                    while (!userDoc && retries < 10) {
-                        await new Promise(resolve => setTimeout(resolve, 300));
-                        userDoc = await getDocument('users', currentUser.uid);
-                        retries++;
-                    }
-                    
-                    if (userDoc) {
-                        const userData = userDoc as User;
-                        setAuthState({
-                            status: 'signedIn',
-                            user: {
-                                ...userData,
-                                id: currentUser.uid,
-                                email: userData.email || currentUser.email || '',
-                                emailVerified: currentUser.emailVerified
-                            } as User
-                        });
-                    }
-                }
-            }}
-        />;
+    return <LoginView />;
 };
 
 export default App;

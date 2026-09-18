@@ -149,8 +149,8 @@ class EmailService {
           provider: 'emailjs',
           serviceId: emailjsConfig.serviceId,
           templateId: emailjsConfig.templateId,
-          fromEmail: data.fromEmail || 'noreply@example.com',
-          fromName: data.fromName || 'LeaveApp',
+          fromEmail: data.fromEmail || 'notification@harrisons.com.my',
+          fromName: data.fromName || 'LeaveApp HHMB',
           updatedAt: data.updatedAt || new Date().toISOString()
         };
         console.log('📧 Email configuration loaded');
@@ -161,8 +161,8 @@ class EmailService {
         // Default configuration
         this.config = {
           provider: 'emailjs',
-          fromEmail: 'noreply@example.com',
-          fromName: 'LeaveApp',
+          fromEmail: 'notification@harrisons.com.my',
+          fromName: 'LeaveApp HHMB',
           updatedAt: new Date().toISOString()
         };
         console.log('📧 Using default email configuration (EmailJS)');
@@ -174,8 +174,8 @@ class EmailService {
       }
       this.config = {
         provider: 'emailjs',
-        fromEmail: 'noreply@example.com',
-        fromName: 'LeaveApp',
+        fromEmail: 'notification@harrisons.com.my',
+        fromName: 'LeaveApp HHMB',
         updatedAt: new Date().toISOString()
       };
     }

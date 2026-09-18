@@ -1,18 +1,40 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Department, User } from '../types';
-import { BRANCH_LIST, filterDepartments, buildUserMaps, hasDuplicateDepartmentName, isValidEmail, normalizeEmail } from '../utils/departmentSettingsHelpers';
+import { Branch, Department, User } from '../types';
+import {
+    filterDepartments,
+    buildUserMaps,
+    hasDuplicateDepartmentName,
+    isValidEmail,
+    normalizeEmail,
+    getAvailableBranchOptions,
+    formatBranchLabel,
+} from '../utils/departmentSettingsHelpers';
 import { createDepartment, updateDepartment, updateUser, deleteDepartment } from '../services/firebaseService';
 import { PlusIcon, ArrowLeftIcon, BuildingOfficeIcon } from './Icons';
 
 interface DepartmentSettingsProps {
     departments: Department[];
     users: User[];
+    branches: Branch[];
     onDepartmentUpdate: () => void;
 }
 
 type Mode = 'view' | 'create';
 
-const DepartmentSettings: React.FC<DepartmentSettingsProps> = ({ departments, users, onDepartmentUpdate }) => {
+const DepartmentSettings: React.FC<DepartmentSettingsProps> = ({ departments, users, branches, onDepartmentUpdate }) => {
+    const branchOptions = useMemo(
+        () => getAvailableBranchOptions(branches, null),
+        [branches]
+    );
+    const branchByCode = useMemo(() => {
+        const map = new Map<string, Branch>();
+        branches.forEach((b) => map.set(b.code, b));
+        return map;
+    }, [branches]);
+    const labelFor = (code: string) => {
+        const b = branchByCode.get(code);
+        return b ? formatBranchLabel(b) : `Branch ${code}`;
+    };
     const [branchFilter, setBranchFilter] = useState<string>('all');
     const [search, setSearch] = useState('');
     const [selectedDepartmentId, setSelectedDepartmentId] = useState<string | null>(null);
@@ -169,7 +191,7 @@ const DepartmentSettings: React.FC<DepartmentSettingsProps> = ({ departments, us
 
         setError(null);
 
-        if (!basicsBranch || !BRANCH_LIST.includes(basicsBranch as typeof BRANCH_LIST[number])) {
+        if (!basicsBranch || !branchOptions.includes(basicsBranch)) {
             setError('Branch code is required.');
             setBasicsBranch(selectedDepartment.branch ?? '');
             return;
@@ -471,8 +493,8 @@ const DepartmentSettings: React.FC<DepartmentSettingsProps> = ({ departments, us
                                 className="w-full bg-surface-light border border-border rounded-md px-3 py-2 text-sm text-text-primary focus:ring-primary focus:border-primary"
                             >
                                 <option value="all">All branches</option>
-                                {BRANCH_LIST.map(branch => (
-                                    <option key={branch} value={branch}>Branch {branch}</option>
+                                {branchOptions.map(branch => (
+                                    <option key={branch} value={branch}>{labelFor(branch)}</option>
                                 ))}
                             </select>
                         </div>
@@ -552,8 +574,8 @@ const DepartmentSettings: React.FC<DepartmentSettingsProps> = ({ departments, us
                                         required
                                     >
                                         <option value="">Select Branch</option>
-                                        {BRANCH_LIST.map(branch => (
-                                            <option key={branch} value={branch}>Branch {branch}</option>
+                                        {branchOptions.map(branch => (
+                                            <option key={branch} value={branch}>{labelFor(branch)}</option>
                                         ))}
                                     </select>
                                 </div>
@@ -628,8 +650,8 @@ const DepartmentSettings: React.FC<DepartmentSettingsProps> = ({ departments, us
                                             className="w-full bg-surface-light border border-border rounded-md px-3 py-2 text-sm text-text-primary focus:ring-primary focus:border-primary"
                                         >
                                             <option value="">Select Branch</option>
-                                            {BRANCH_LIST.map(branch => (
-                                                <option key={branch} value={branch}>Branch {branch}</option>
+                                            {branchOptions.map(branch => (
+                                                <option key={branch} value={branch}>{labelFor(branch)}</option>
                                             ))}
                                         </select>
                                     </div>

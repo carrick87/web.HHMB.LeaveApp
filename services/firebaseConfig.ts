@@ -1,7 +1,7 @@
 // Firebase configuration shared between services
 import * as firebase from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
+import { getAuth, type Auth } from 'firebase/auth';
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
@@ -25,4 +25,12 @@ const app = firebase.initializeApp(firebaseConfig);
 export const firestore = getFirestore(app);
 export const auth = getAuth(app);
 export const storage = getStorage(app);
+
+/** Secondary Auth instance so admins can create users without replacing their own session. */
+export const getSecondaryAuth = (): Auth => {
+  const existing = firebase.getApps().find((a) => a.name === 'Secondary');
+  const secondaryApp = existing ?? firebase.initializeApp(firebaseConfig, 'Secondary');
+  return getAuth(secondaryApp);
+};
+
 export { app, firebaseConfig };

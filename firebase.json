@@ -1,6 +1,12 @@
 {
   "firestore": {
-    "rules": "firestore.rules"
+    "database": "(default)",
+    "location": "asia-southeast1",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "storage.rules"
   },
   "functions": [
     {
@@ -14,5 +20,14 @@
       ],
       "predeploy": []
     }
-  ]
+  ],
+  "auth": {
+    "providers": {
+      "emailPassword": true,
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "HHMB LeaveApp",
+        "supportEmail": "google@harrisons.com.my"
+      }
+    }
+  }
 }

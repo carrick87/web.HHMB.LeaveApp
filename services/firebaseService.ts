@@ -8,6 +8,7 @@ import {
     signOut,
     sendEmailVerification,
     sendPasswordResetEmail,
+    deleteUser as deleteAuthUser,
     type User as FirebaseUser
 } from 'firebase/auth';
 import {
@@ -28,6 +29,7 @@ import {
     limit,
     writeBatch,
     documentId,
+    arrayUnion,
     type DocumentReference,
     type Query as FirestoreQuery
 } from 'firebase/firestore';
@@ -37,149 +39,124 @@ import {
     getDownloadURL,
     deleteObject
 } from 'firebase/storage';
-import { User, UserRole, LeaveBalanceHistory, PublicHolidaySet, LeaveRequest } from '../types';
-import { auth, firestore, storage } from './firebaseConfig';
+import { User, UserRole, LeaveBalanceHistory, PublicHolidaySet, LeaveRequest, Branch } from '../types';
+import { auth, firestore, storage, getSecondaryAuth } from './firebaseConfig';
+import { DEFAULT_BRANCH_SEED_CODES } from '../utils/departmentSettingsHelpers';
 
 // --- AUTHENTICATION ---
+
+export const ALLOWED_EMAIL_DOMAIN = '@harrisons.com.my';
 
 export const onAuthStateChanged = (callback: (user: FirebaseUser | null) => void) => {
     return firebaseOnAuthStateChanged(auth, callback);
 };
 
+export const normalizeEmail = (email: string): string => email.trim().toLowerCase();
 
-// Generate email from employee number for Firebase Auth compatibility
+export const isAllowedCompanyEmail = (email: string): boolean => {
+    return normalizeEmail(email).endsWith(ALLOWED_EMAIL_DOMAIN);
+};
+
+/** Legacy helper for any remaining call sites. */
 export const generateEmailFromEmployeeNumber = (employeeNumber: string): string => {
-    // Clean employee number and use as email
     const cleanNumber = employeeNumber.trim().replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-    // Ensure we have a valid employee number
-    if (!cleanNumber || cleanNumber.length === 0) {
+    if (!cleanNumber) {
         throw new Error('Invalid employee number format');
     }
     return `${cleanNumber}@system.local`;
 };
 
-export const signInUser = async (employeeNumberOrEmail: string, password: string) => {
-    // Try as employee number first (new format - generate email from employee number)
-    try {
-        const email = generateEmailFromEmployeeNumber(employeeNumberOrEmail);
-        return await signInWithEmailAndPassword(auth, email, password);
-    } catch (err: any) {
-        // If it fails with invalid-credential or invalid-email, try as email (for backward compatibility)
-        if (err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/invalid-email') {
-            // Try as email address (for existing users created before employee number system)
-            // This allows backward compatibility
-            try {
-                return await signInWithEmailAndPassword(auth, employeeNumberOrEmail, password);
-            } catch (emailErr: any) {
-                // If email login also fails, throw the original employee number error
-                throw err;
-            }
-        }
-        // Re-throw other errors
-        throw err;
-    }
+export const padInitialPassword = (employeeNumber: string): string => {
+    return String(employeeNumber).padStart(6, '0');
 };
 
-export const signUpUser = async (employeeNumber: string, email: string, password: string, additionalData: { name: string, departmentId?: string }) => {
-    // MANDATORY: Check if employee number already exists - duplicates are NOT allowed
-    try {
-        const employeeExists = await checkEmployeeNumberExists(employeeNumber);
-        if (employeeExists) {
-            throw new Error('An account with this employee number already exists. Please use a different employee number or contact administrator if you believe this is an error.');
-        }
-    } catch (checkErr: any) {
-        // If permission denied, we cannot verify - block sign-up and ask user to contact admin
-        if (checkErr.code === 'permission-denied') {
-            throw new Error('Unable to verify employee number. Please contact administrator to resolve this issue.');
-        }
-        // Re-throw if it's a different error (like actually exists)
-        throw checkErr;
-    }
-    
-    // Generate a unique email for Firebase Auth (allows same email with different employee numbers)
-    // Format: {employeeNumber}@system.local
-    // This allows multiple users to have the same email address but different employee numbers
-    const authEmail = generateEmailFromEmployeeNumber(employeeNumber);
-    
-    // Create account with generated email - this allows same email with different employee numbers
-    const { user } = await createUserWithEmailAndPassword(auth, authEmail, password);
-    
-    await updateProfile(user, { displayName: additionalData.name });
-    
-    // No email verification required - users can sign in immediately after sign-up
-    
-    // Create user document in Firestore
-    // User is authenticated at this point, so they can create their own document
-    try {
-        const masterEmployee = await getEmployeeByNumber(employeeNumber);
-        const payGroup = masterEmployee?.payGroup === '6' ? '6' : '5';
+export const isUsersCollectionEmpty = async (): Promise<boolean> => {
+    const snap = await getDocs(query(collection(firestore, 'users'), limit(1)));
+    return snap.empty;
+};
 
-        // Check if there's a current leave balance for this employee number
-        let leaveDaysTotal = 0; // Default leave days when balance is unavailable
-        try {
-            const currentBalance = await getCurrentLeaveBalance(employeeNumber);
-            if (currentBalance !== null) {
-                leaveDaysTotal = currentBalance;
-            }
-        } catch (balanceError) {
-            console.warn('Could not fetch current leave balance for new user, defaulting to 0:', balanceError);
-            // Continue with default value if balance lookup fails
-        }
-        
-        const userDocRef = doc(firestore, 'users', user.uid);
-        const userData: any = {
-            name: additionalData.name,
-            email: email, // User-provided email (can be duplicate across users)
-            authEmail: authEmail, // Internal email used for Firebase Auth (unique per employee number)
-            employeeNumber: employeeNumber, // Store actual employee number
-            payGroup: payGroup, // Copy paygroup from employee master list
-            role: UserRole.NORMAL, // Default role
-            leaveDaysTotal: leaveDaysTotal, // Use balance from reference table if available, otherwise default
-            avatarUrl: `https://i.pravatar.cc/150?u=${user.uid}`,
-            isActive: true,
-            emailVerified: true, // Email verification not required - set to true by default
-            createdAt: new Date().toISOString(),
-        };
-        
-        // Only add departmentId if provided
-        if (additionalData.departmentId) {
-            userData.departmentId = additionalData.departmentId;
-        }
-        
-        await setDoc(userDocRef, userData);
-        
-        // Restore leave requests for this employee number
-        // This allows users who were deleted to get their leave history back when they sign up again
-        try {
-            await restoreLeaveRequestsForEmployee(employeeNumber, user.uid);
-        } catch (restoreError) {
-            // Log error but don't fail sign-up if restoration fails
-            console.warn('Failed to restore leave requests for employee:', restoreError);
-        }
-        
-        // Restore approver assignments in departments
-        // This allows deleted approvers to be restored to their departments when they sign up again
-        try {
-            await restoreApproverInDepartments(employeeNumber, user.uid);
-        } catch (restoreError) {
-            // Log error but don't fail sign-up if restoration fails
-            console.warn('Failed to restore approver in departments:', restoreError);
-        }
-        
-        // Wait a moment to ensure Firestore document is fully written
-        // This helps the auth state listener find the document immediately
-        await new Promise(resolve => setTimeout(resolve, 300));
-    } catch (docError: any) {
-        // If document creation fails, the user account is still created in Firebase Auth
-        // This is a critical error - user needs their Firestore document
-        console.error('Failed to create user document in Firestore:', docError);
-        
-        // Re-throw the error so sign-up fails and user sees the error
-        // This ensures the user knows there was a problem
-        throw new Error(`Failed to create user profile. Please contact administrator. Error: ${docError.message || 'Permission denied'}`);
+export const signInUser = async (email: string, password: string) => {
+    const normalized = normalizeEmail(email);
+    if (!isAllowedCompanyEmail(normalized)) {
+        throw new Error(`Only ${ALLOWED_EMAIL_DOMAIN} email addresses can sign in.`);
     }
-    
+    return signInWithEmailAndPassword(auth, normalized, password);
+};
+
+/** First account on an empty project — becomes Super Admin. */
+export const bootstrapSuperAdmin = async (name: string, email: string, password: string) => {
+    const normalized = normalizeEmail(email);
+    if (!isAllowedCompanyEmail(normalized)) {
+        throw new Error(`Only ${ALLOWED_EMAIL_DOMAIN} email addresses are allowed.`);
+    }
+    if (password.length < 6) {
+        throw new Error('Password must be at least 6 characters.');
+    }
+    if (!(await isUsersCollectionEmpty())) {
+        throw new Error('An administrator already exists. Sign in with your email and password.');
+    }
+
+    const { user } = await createUserWithEmailAndPassword(auth, normalized, password);
+    await updateProfile(user, { displayName: name.trim() });
+
+    const bootstrap: any = {
+        name: name.trim(),
+        email: normalized,
+        authEmail: normalized,
+        employeeNumber: '00BOOTSTRAP',
+        payGroup: '5',
+        role: UserRole.SUPER_ADMIN,
+        leaveDaysTotal: 0,
+        avatarUrl: `https://i.pravatar.cc/150?u=${user.uid}`,
+        isActive: true,
+        emailVerified: true,
+        createdAt: new Date().toISOString(),
+    };
+    await setDoc(doc(firestore, 'users', user.uid), bootstrap);
     return user;
+};
+
+/**
+ * Load Firestore profile after Email/Password sign-in.
+ * Rejects inactive or missing profiles.
+ */
+export const resolveSignedInUserProfile = async (firebaseUser: FirebaseUser): Promise<User> => {
+    const email = normalizeEmail(firebaseUser.email || '');
+    if (email && !isAllowedCompanyEmail(email)) {
+        await signOut(auth);
+        throw new Error(`Only ${ALLOWED_EMAIL_DOMAIN} email addresses can sign in.`);
+    }
+
+    let userDoc = await getDoc(doc(firestore, 'users', firebaseUser.uid));
+    let retries = 0;
+    while (!userDoc.exists() && retries < 8) {
+        await new Promise((r) => setTimeout(r, 250));
+        userDoc = await getDoc(doc(firestore, 'users', firebaseUser.uid));
+        retries++;
+    }
+
+    if (!userDoc.exists()) {
+        await signOut(auth);
+        throw new Error('No LeaveApp profile found for this account. Ask your administrator to register you.');
+    }
+
+    const data = userDoc.data() as User;
+    if ((data as any).isActive === false) {
+        await signOut(auth);
+        throw new Error('This account has been deactivated. Please contact your administrator.');
+    }
+
+    return { ...data, id: firebaseUser.uid, email: data.email || email };
+};
+
+/** @deprecated Public signup removed — use admin provisioning. */
+export const signUpUser = async (
+    _employeeNumber: string,
+    _email: string,
+    _password: string,
+    _additionalData: { name: string; departmentId?: string }
+) => {
+    throw new Error('Self-serve sign-up is disabled. Accounts are created by your LeaveApp administrator.');
 };
 
 export const signOutUser = () => {
@@ -901,7 +878,7 @@ export const createUser = async (name: string, email: string, password: string, 
     return user;
 };
 
-export const updateUser = async (userId: string, userData: { name?: string, email?: string, role?: UserRole, departmentId?: string | null, branchOverride?: string | null, payGroup?: string, branches?: string[] | null, adminDepartments?: string[] | null }) => {
+export const updateUser = async (userId: string, userData: { name?: string, email?: string, role?: UserRole, departmentId?: string | null, branch?: string | null, branchOverride?: string | null, payGroup?: string, branches?: string[] | null, adminDepartments?: string[] | null }) => {
     const userDocRef = doc(firestore, 'users', userId);
     const updateData: any = {
         updatedAt: serverTimestamp()
@@ -919,6 +896,13 @@ export const updateUser = async (userId: string, userData: { name?: string, emai
         }
     }
     if (userData.payGroup !== undefined) updateData.payGroup = userData.payGroup === '6' ? '6' : '5';
+    if (userData.branch !== undefined) {
+        if (userData.branch === null || userData.branch === '') {
+            updateData.branch = deleteField();
+        } else {
+            updateData.branch = userData.branch;
+        }
+    }
     if (userData.branchOverride !== undefined) {
         if (userData.branchOverride === null || userData.branchOverride === '') {
             updateData.branchOverride = deleteField();
@@ -948,6 +932,14 @@ export const updateUser = async (userId: string, userData: { name?: string, emai
     }
     
     await updateDoc(userDocRef, updateData);
+};
+
+export const appendAdminManagedDepartment = async (userId: string, departmentId: string) => {
+    const userDocRef = doc(firestore, 'users', userId);
+    await updateDoc(userDocRef, {
+        adminDepartments: arrayUnion(departmentId),
+        updatedAt: serverTimestamp(),
+    });
 };
 
 // --- DEPARTMENT MANAGEMENT ---
@@ -1003,78 +995,306 @@ export const sendEmailVerificationToUser = async (user: FirebaseUser) => {
     return sendEmailVerification(user);
 };
 
-// Send password reset email
+// Send password reset email (Firebase Auth)
 export const sendPasswordResetEmailToUser = async (email: string) => {
-    return sendPasswordResetEmail(auth, email);
+    const normalized = normalizeEmail(email);
+    if (!isAllowedCompanyEmail(normalized)) {
+        throw new Error(`Only ${ALLOWED_EMAIL_DOMAIN} email addresses are allowed.`);
+    }
+    return sendPasswordResetEmail(auth, normalized);
 };
 
-// Reset user password (Super Admin only)
-// Uses Firebase Cloud Function to set a new password directly via Admin SDK
-// Note: Passwords are hashed and cannot be viewed. Super Admin sets the new password directly.
-export const resetUserPassword = async (userId: string, newPassword: string): Promise<void> => {
-    // Validate password
-    if (!newPassword || newPassword.length < 6) {
-        throw new Error('Password must be at least 6 characters long');
-    }
-    
-    // Get current user's auth token for authentication
+// Super Admin direct password set — use Firebase sendPasswordResetEmail for self-serve reset.
+export const resetUserPassword = async (_userId: string, _newPassword: string): Promise<void> => {
+    throw new Error('Use “Forgot password” on the sign-in page (Firebase email reset), or ask the user to change their password in Profile.');
+};
+
+export interface BranchEmployeeRegisterInput {
+    employeeNumber: string;
+    name: string;
+    email: string;
+    payGroup: '5' | '6';
+    branch: string;
+}
+
+export interface BranchEmployeeCreated {
+    name: string;
+    employeeNumber: string;
+    email: string;
+    password: string;
+    payGroup: '5' | '6' | string;
+    branch: string;
+}
+
+export interface BranchEmployeeFailed {
+    employeeNumber: string;
+    name: string;
+    email: string;
+    error: string;
+}
+
+export interface BranchEmployeeRegisterResult {
+    created: BranchEmployeeCreated[];
+    failed: BranchEmployeeFailed[];
+}
+
+export const registerBranchEmployees = async (
+    employees: BranchEmployeeRegisterInput[]
+): Promise<BranchEmployeeRegisterResult> => {
     const currentUser = auth.currentUser;
     if (!currentUser) {
-        throw new Error('You must be logged in to reset passwords');
+        throw new Error('You must be logged in to register employees');
     }
-    
-    // Get ID token for authentication
-    const idToken = await currentUser.getIdToken();
-    
-    // Get user document to find their auth email
-    const userDoc = await getDocument<User>('users', userId);
-    if (!userDoc) {
-        throw new Error('User not found');
+
+    const adminDoc = await getDoc(doc(firestore, 'users', currentUser.uid));
+    if (!adminDoc.exists()) {
+        throw new Error('Admin user profile not found');
     }
-    
-    // Get the auth email (either from authEmail field or generate from employeeNumber)
-    let authEmail: string;
-    if ((userDoc as any).authEmail) {
-        authEmail = (userDoc as any).authEmail;
-    } else if (userDoc.employeeNumber) {
-        authEmail = generateEmailFromEmployeeNumber(userDoc.employeeNumber);
-    } else {
-        throw new Error('User does not have an employee number or auth email');
+    const adminData = adminDoc.data() as User;
+    if (adminData.role !== UserRole.ADMIN && adminData.role !== UserRole.SUPER_ADMIN) {
+        throw new Error('Only Admins can register employees');
     }
-    
-    // Get Cloud Functions URL (set VITE_FUNCTIONS_URL or derive from Firebase project id)
-    const functionsBase =
-        import.meta.env.VITE_FUNCTIONS_URL ||
-        `https://us-central1-${import.meta.env.VITE_FIREBASE_PROJECT_ID}.cloudfunctions.net`;
-    const functionsUrl = `${functionsBase.replace(/\/$/, '')}/resetUserPassword`;
-    
-    // Call Cloud Function to set new password
-    try {
-        const response = await fetch(functionsUrl, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${idToken}`
-            },
-            body: JSON.stringify({
-                userId: userId,
-                authEmail: authEmail,
-                newPassword: newPassword
-            })
+
+    let allowedBranches: string[] | null = null;
+    if (adminData.role === UserRole.ADMIN) {
+        if (Array.isArray(adminData.branches) && adminData.branches.length > 0) {
+            allowedBranches = adminData.branches.map((b) => String(b).trim()).filter(Boolean);
+        } else {
+            const own = (adminData.branchOverride || adminData.branch || '').trim();
+            allowedBranches = own ? [own] : [];
+        }
+    }
+
+    const secondaryAuth = getSecondaryAuth();
+    const created: BranchEmployeeCreated[] = [];
+    const failed: BranchEmployeeFailed[] = [];
+    const seenNumbers = new Set<string>();
+    const seenEmails = new Set<string>();
+
+    for (const row of employees) {
+        const employeeNumber = String(row.employeeNumber || '').trim();
+        const name = String(row.name || '').trim();
+        const email = normalizeEmail(row.email || '');
+        const payGroup = row.payGroup === '6' ? '6' : '5';
+        const branch = String(row.branch || '').trim();
+        let createdUid: string | null = null;
+
+        try {
+            if (!employeeNumber) throw new Error('Employee number is required');
+            if (employeeNumber.length < 4) throw new Error('Employee number must be at least 4 characters');
+            if (!/^[A-Za-z0-9]+$/.test(employeeNumber)) {
+                throw new Error('Employee number can only contain letters and numbers');
+            }
+            if (!name) throw new Error('Name is required');
+            if (!email.includes('@')) throw new Error('A valid email address is required');
+            if (!isAllowedCompanyEmail(email)) {
+                throw new Error(`Only ${ALLOWED_EMAIL_DOMAIN} email addresses are allowed`);
+            }
+            if (!branch) throw new Error('Branch is required');
+            if (allowedBranches && !allowedBranches.includes(branch)) {
+                throw new Error('Selected branch is not in your assigned branches');
+            }
+            if (seenNumbers.has(employeeNumber.toLowerCase())) {
+                throw new Error('Duplicate employee number in this batch');
+            }
+            if (seenEmails.has(email)) {
+                throw new Error('Duplicate email in this batch');
+            }
+            seenNumbers.add(employeeNumber.toLowerCase());
+            seenEmails.add(email);
+
+            if (await checkEmployeeNumberExists(employeeNumber)) {
+                throw new Error('An account with this employee number already exists');
+            }
+
+            const emailUsers = await getDocs(query(collection(firestore, 'users'), where('email', '==', email), limit(1)));
+            if (!emailUsers.empty) {
+                throw new Error('An account with this email already exists');
+            }
+
+            const initialPassword = padInitialPassword(employeeNumber);
+            const credential = await createUserWithEmailAndPassword(secondaryAuth, email, initialPassword);
+            createdUid = credential.user.uid;
+            await updateProfile(credential.user, { displayName: name });
+
+            await saveEmployee(employeeNumber, name, payGroup);
+
+            let leaveDaysTotal = 0;
+            try {
+                const balance = await getCurrentLeaveBalance(employeeNumber);
+                if (typeof balance === 'number') leaveDaysTotal = balance;
+            } catch {
+                // default 0
+            }
+
+            await setDoc(doc(firestore, 'users', createdUid), {
+                name,
+                email,
+                authEmail: email,
+                employeeNumber,
+                branch,
+                payGroup,
+                role: UserRole.NORMAL,
+                leaveDaysTotal,
+                avatarUrl: `https://i.pravatar.cc/150?u=${createdUid}`,
+                isActive: true,
+                emailVerified: true,
+                createdAt: new Date().toISOString(),
+            });
+
+            try {
+                await restoreLeaveRequestsForEmployee(employeeNumber, createdUid);
+            } catch (e) {
+                console.warn('Failed to restore leave requests:', e);
+            }
+            try {
+                await restoreApproverInDepartments(employeeNumber, createdUid);
+            } catch (e) {
+                console.warn('Failed to restore approver assignments:', e);
+            }
+
+            await signOut(secondaryAuth);
+            created.push({ name, employeeNumber, email, password: initialPassword, payGroup, branch });
+        } catch (error: any) {
+            if (createdUid) {
+                try {
+                    if (secondaryAuth.currentUser?.uid === createdUid) {
+                        await deleteAuthUser(secondaryAuth.currentUser);
+                    }
+                } catch {
+                    // ignore cleanup errors
+                }
+                try {
+                    await deleteDoc(doc(firestore, 'users', createdUid));
+                } catch {
+                    // ignore
+                }
+            }
+            try {
+                await signOut(secondaryAuth);
+            } catch {
+                // ignore
+            }
+            failed.push({
+                employeeNumber,
+                name,
+                email,
+                error: error?.code === 'auth/email-already-in-use'
+                    ? 'An Auth account with this email already exists'
+                    : (error?.message || 'Failed to register employee'),
+            });
+        }
+    }
+
+    return { created, failed };
+};
+
+// --- BRANCH CATALOG ---
+
+export const getBranches = async (includeInactive = true): Promise<Branch[]> => {
+    const snap = await getDocs(collection(firestore, 'branches'));
+    const list = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Branch));
+    const filtered = includeInactive ? list : list.filter((b) => b.isActive !== false);
+    return filtered.sort((a, b) => a.code.localeCompare(b.code));
+};
+
+export const listenToBranches = (
+    callback: (branches: Branch[]) => void,
+    includeInactive = true
+): (() => void) => {
+    return onSnapshot(collection(firestore, 'branches'), (snap) => {
+        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Branch));
+        const filtered = includeInactive ? list : list.filter((b) => b.isActive !== false);
+        callback(filtered.sort((a, b) => a.code.localeCompare(b.code)));
+    });
+};
+
+/** If branches collection is empty, seed from DEFAULT_BRANCH_SEED_CODES. */
+export const ensureBranchesSeeded = async (): Promise<Branch[]> => {
+    const existing = await getBranches(true);
+    if (existing.length > 0) return existing;
+
+    const now = new Date().toISOString();
+    const batch = writeBatch(firestore);
+    for (const code of DEFAULT_BRANCH_SEED_CODES) {
+        const ref = doc(firestore, 'branches', code);
+        batch.set(ref, {
+            code,
+            name: code,
+            isActive: true,
+            createdAt: now,
+            updatedAt: now,
         });
-        
-        if (!response.ok) {
-            const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-            throw new Error(errorData.error || `Failed to reset password: ${response.statusText}`);
-        }
-        
-        const result = await response.json();
-        if (!result.success) {
-            throw new Error(result.message || 'Failed to reset password');
-        }
-    } catch (error: any) {
-        throw new Error(`Failed to reset password: ${error.message}`);
     }
+    await batch.commit();
+    return getBranches(true);
+};
+
+export const saveBranch = async (code: string, name: string): Promise<Branch> => {
+    const normalizedCode = code.trim();
+    const normalizedName = name.trim() || normalizedCode;
+    if (!normalizedCode) throw new Error('Branch code is required');
+    if (!/^[A-Za-z0-9_-]+$/.test(normalizedCode)) {
+        throw new Error('Branch code can only contain letters, numbers, underscore, and hyphen');
+    }
+
+    const ref = doc(firestore, 'branches', normalizedCode);
+    const existing = await getDoc(ref);
+    if (existing.exists()) {
+        throw new Error('A branch with this code already exists');
+    }
+
+    const now = new Date().toISOString();
+    const payload: Branch = {
+        id: normalizedCode,
+        code: normalizedCode,
+        name: normalizedName,
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+    };
+    await setDoc(ref, {
+        code: payload.code,
+        name: payload.name,
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+    });
+    return payload;
+};
+
+export const updateBranch = async (
+    code: string,
+    updates: { name?: string; isActive?: boolean }
+): Promise<void> => {
+    const ref = doc(firestore, 'branches', code.trim());
+    const existing = await getDoc(ref);
+    if (!existing.exists()) {
+        throw new Error('Branch not found');
+    }
+    const patch: Record<string, unknown> = {
+        updatedAt: new Date().toISOString(),
+    };
+    if (updates.name !== undefined) {
+        const n = updates.name.trim();
+        if (!n) throw new Error('Branch name is required');
+        patch.name = n;
+    }
+    if (updates.isActive !== undefined) {
+        patch.isActive = updates.isActive;
+    }
+    await updateDoc(ref, patch);
+};
+
+export const deleteBranch = async (code: string): Promise<void> => {
+    const normalizedCode = code.trim();
+    if (!normalizedCode) throw new Error('Branch code is required');
+    const ref = doc(firestore, 'branches', normalizedCode);
+    const existing = await getDoc(ref);
+    if (!existing.exists()) {
+        throw new Error('Branch not found');
+    }
+    await deleteDoc(ref);
 };
 
 // --- EMPLOYEE MANAGEMENT ---

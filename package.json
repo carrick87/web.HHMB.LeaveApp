@@ -1,7 +1,7 @@
 {
-  "name": "leave-app",
+  "name": "hhmb-leave-app",
   "private": true,
-  "version": "1.5.1",
+  "version": "0.1.0-beta",
   "type": "module",
   "scripts": {
     "dev": "vite",

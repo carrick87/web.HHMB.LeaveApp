@@ -146,9 +146,11 @@ export const DocumentTextIcon: React.FC<IconProps> = ({ className }) => (
 
 export const AppLogo: React.FC<IconProps> = ({ className }) => (
     <img 
-        src="/appstore.png" 
-        alt="LeaveApp Logo" 
+        src="/harrisons-logo.png" 
+        alt="Harrisons Holdings (Malaysia) Berhad" 
         className={className}
         style={{ objectFit: 'contain' }}
     />
 );
+
+export const HarrisonsLogo = AppLogo;

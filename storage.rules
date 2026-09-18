@@ -1,0 +1,40 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function requesterRole() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isSuperAdmin() {
+      return isSignedIn() && requesterRole() == 'Super Admin';
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAllowedContentType() {
+      return request.resource.contentType.matches('image/.*')
+        || request.resource.contentType == 'application/pdf';
+    }
+
+    // Max 10 MB per object (matches app initial image limit; PDFs are smaller after compress)
+    function isWithinSizeLimit() {
+      return request.resource.size < 10 * 1024 * 1024;
+    }
+
+    // leave-attachments/{userId}/{requestId}/{fileName}
+    match /leave-attachments/{userId}/{requestId}/{fileName} {
+      // Owner can upload; any authenticated user can read (approvers need download)
+      allow read: if isSignedIn();
+      allow create, update: if isOwner(userId)
+        && isAllowedContentType()
+        && isWithinSizeLimit();
+      allow delete: if isOwner(userId) || isSuperAdmin();
+    }
+  }
+}

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { User, UserRole, Department } from '../types';
 import { updateUser, changeUserPassword, getEmployeeByNumber } from '../services/firebaseService';
 import { PencilIcon, UserIcon, CheckIcon, XIcon } from './Icons';
+import { getEffectiveUserBranch } from '../utils/departmentSettingsHelpers';
 
 interface UserProfileProps {
     user: User;
@@ -50,11 +51,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ user, departments, onProfileU
         }
     };
 
-    // Helper function to extract branch from employee number (first 2 characters)
-    const getBranch = (employeeNumber: string): string => {
-        if (!employeeNumber || employeeNumber.length < 2) return '';
-        return employeeNumber.substring(0, 2);
-    };
+    const userBranch = getEffectiveUserBranch(user);
 
     const getPayGroupLabel = (payGroup?: string): string => {
         if (payGroup === '6') return '6 - 6 working days (Saturday included)';
@@ -86,10 +83,8 @@ const UserProfile: React.FC<UserProfileProps> = ({ user, departments, onProfileU
 
     const effectivePayGroup = user.payGroup === '6' || masterPayGroup === '6' ? '6' : '5';
 
-    // Get filtered departments based on user's branch
+    // Get filtered departments based on user's effective branch
     const getFilteredDepartments = (): Department[] => {
-        if (!user.employeeNumber) return departments;
-        const userBranch = getBranch(user.employeeNumber);
         if (!userBranch) return departments;
         return departments.filter(dept => dept.branch?.toUpperCase() === userBranch.toUpperCase());
     };
@@ -97,8 +92,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ user, departments, onProfileU
     useEffect(() => {
         // Validate current department belongs to user's branch
         let validDepartmentId = user.departmentId || '';
-        if (user.employeeNumber && user.departmentId) {
-            const userBranch = getBranch(user.employeeNumber);
+        if (userBranch && user.departmentId) {
             const currentDept = departments.find(d => d.id === user.departmentId);
             if (currentDept && currentDept.branch?.toUpperCase() !== userBranch.toUpperCase()) {
                 // Department doesn't match branch - clear it
@@ -111,7 +105,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ user, departments, onProfileU
             email: user.email,
             departmentId: validDepartmentId
         });
-    }, [user, departments]);
+    }, [user, departments, userBranch]);
 
     useEffect(() => {
         let isCancelled = false;
@@ -396,7 +390,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ user, departments, onProfileU
                                         value={editForm.departmentId}
                                         onChange={(e) => setEditForm({ ...editForm, departmentId: e.target.value })}
                                         className="w-full bg-surface-light border border-border rounded-md p-3 focus:ring-primary focus:border-primary text-text-primary"
-                                        disabled={!user.employeeNumber}
+                                        disabled={!userBranch}
                                     >
                                         <option value="">Select Department</option>
                                         {getFilteredDepartments().length > 0 ? (
@@ -407,18 +401,17 @@ const UserProfile: React.FC<UserProfileProps> = ({ user, departments, onProfileU
                                             ))
                                         ) : (
                                             <option value="" disabled>
-                                                No departments available for Branch {user.employeeNumber ? getBranch(user.employeeNumber) : 'N/A'}
+                                                No departments available for Branch {userBranch || 'N/A'}
                                             </option>
                                         )}
                                     </select>
-                                    {user.employeeNumber && (
+                                    {userBranch ? (
                                         <p className="text-xs text-text-muted mt-1">
-                                            Showing departments for Branch {getBranch(user.employeeNumber)}
+                                            Showing departments for Branch {userBranch}
                                         </p>
-                                    )}
-                                    {!user.employeeNumber && (
+                                    ) : (
                                         <p className="text-xs text-text-warning mt-1">
-                                            Employee number required to filter departments by branch
+                                            Branch not set — departments are not filtered
                                         </p>
                                     )}
                                 </div>
@@ -455,7 +448,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ user, departments, onProfileU
                                 <div>
                                     <label className="block text-sm font-medium text-text-secondary mb-2">Branch</label>
                                     <div className="p-3 bg-surface-light border border-border rounded-md text-text-primary font-medium">
-                                        {user.employeeNumber ? getBranch(user.employeeNumber) : 'N/A'}
+                                        {userBranch || 'N/A'}
                                     </div>
                                 </div>
 
@@ -561,7 +554,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ user, departments, onProfileU
                                 <span className="text-yellow-500 text-lg">⚠️</span>
                                 <div className="text-sm text-yellow-400">
                                     <p className="font-medium mb-1">Security Notice:</p>
-                                    <p>For security reasons, you may need to sign out and sign in again if you haven't done so recently before changing your password.</p>
+                                    <p>If you signed in a while ago, you may need to sign out and sign in again before changing your password.</p>
                                 </div>
                             </div>
                         </div>

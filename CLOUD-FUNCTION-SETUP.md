@@ -1,40 +1,27 @@
-# Firebase Cloud Function setup (optional)
+# Firebase setup notes (HHMB / web-hhmb-leaveapp only)
 
-Admin password reset uses a Firebase Cloud Function. Skip this if you do not need that feature.
+Do **not** deploy anything to the HSSB Firebase project.
 
-## Prerequisites
+## Auth
 
-- A Firebase project (same as the web app)
-- Firebase CLI: `npm install -g firebase-tools`
-- Blaze (pay-as-you-go) plan for Cloud Functions
+- Google Sign-In only.
+- Admin provisions users in-app (client writes to `provisionedUsers` + `employees`).
+- First `@harrisons.com.my` Google sign-in on an empty `users` collection becomes Super Admin.
 
-## Deploy
+## Cloud Functions (optional)
 
-```bash
-cd functions
-npm install
-cd ..
-firebase login
-firebase use your-project-id
-firebase deploy --only functions
-```
+`registerBranchEmployees` exists under `functions/` for Admin-SDK style provisioning, but the app uses **client-side registration** by default so the Spark plan works.
 
-## Configure the web app
-
-Set in `.env.local` / Vercel env:
+To deploy functions you must upgrade the project to **Blaze**:
+https://console.firebase.google.com/project/web-hhmb-leaveapp/usage/details
 
 ```bash
-VITE_FUNCTIONS_URL=https://us-central1-your-project-id.cloudfunctions.net
+firebase use web-hhmb-leaveapp
+firebase deploy --only functions:registerBranchEmployees
 ```
 
-If unset, the app derives the URL from `VITE_FIREBASE_PROJECT_ID` (us-central1).
+## Rules
 
-## Verify
-
-After deploy, the function URL looks like:
-
+```bash
+firebase deploy --only firestore:rules,storage --project web-hhmb-leaveapp
 ```
-https://us-central1-your-project-id.cloudfunctions.net/resetUserPassword
-```
-
-Only authenticated Super Admins should be able to call it (see `functions/index.js` auth checks).

@@ -1,8 +1,14 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { User, UserRole, Department, LeaveRequest, LeaveStatus } from '../types';
+import { User, UserRole, Department, LeaveRequest, LeaveStatus, Branch } from '../types';
 import { createUser, updateUser, deleteUser, updateUserRole, updateUserLeaveDays, toggleUserStatus, resetUserPassword, getOrphanedLeaveRequests, restoreLeaveRequestsByUserIds } from '../services/firebaseService';
 import { generateSecurePassword } from '../utils/passwordUtils';
 import { ChevronDownIcon, PlusIcon, PencilIcon, TrashIcon, UserIcon } from './Icons';
+import {
+    getEffectiveUserBranch as resolveEffectiveUserBranch,
+    legacyEmpNumberBranchPrefix,
+    getAvailableBranchOptions,
+    formatBranchLabel,
+} from '../utils/departmentSettingsHelpers';
 
 function buildPasswordResetReplyMessage(displayName: string, password: string): string {
     const first = displayName.trim().split(/\s+/)[0] || displayName.trim() || 'there';
@@ -25,10 +31,11 @@ interface UserManagementProps {
     users: User[];
     departments: Department[];
     currentUser: User;
+    branches: Branch[];
     onUserUpdate: () => void;
 }
 
-const UserManagement: React.FC<UserManagementProps> = ({ users, departments, currentUser, onUserUpdate }) => {
+const UserManagement: React.FC<UserManagementProps> = ({ users, departments, currentUser, branches, onUserUpdate }) => {
     const [editingUser, setEditingUser] = useState<User | null>(null);
     const [showCreateUser, setShowCreateUser] = useState(false);
     const [userForm, setUserForm] = useState({
@@ -382,17 +389,28 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, departments, cur
         });
     };
 
-    const BRANCH_LIST = ['10', '11', '20', '21', '23', '24', '25', '30', '40', '45'];
-
-    // Helper function to extract branch from employee number (first 2 characters)
-    const getBranch = (employeeNumber: string): string => {
-        if (!employeeNumber || employeeNumber.length < 2) return '';
-        return employeeNumber.substring(0, 2);
+    const branchOptions = useMemo(() => getAvailableBranchOptions(branches, null), [branches]);
+    const branchByCode = useMemo(() => {
+        const map = new Map<string, Branch>();
+        branches.forEach((b) => map.set(b.code, b));
+        return map;
+    }, [branches]);
+    const labelFor = (code: string) => {
+        const b = branchByCode.get(code);
+        return b ? formatBranchLabel(b) : `Branch ${code}`;
     };
 
+    // Effective branch for form editing (optional override from select)
     const getEffectiveUserBranch = (user: User | null, branchOverride?: string): string => {
         if (!user) return '';
-        return (branchOverride || user.branchOverride || getBranch(user.employeeNumber) || '').trim();
+        if (branchOverride !== undefined) {
+            const o = branchOverride.trim();
+            if (o) return o;
+            const explicit = (user.branch || '').trim();
+            if (explicit) return explicit;
+            return legacyEmpNumberBranchPrefix(user.employeeNumber);
+        }
+        return resolveEffectiveUserBranch(user);
     };
 
     const getUserPayGroup = (user: User): string => {
@@ -475,15 +493,15 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, departments, cur
         if (currentUser.role === UserRole.ADMIN) {
             const adminBranches = currentUser.branches && currentUser.branches.length > 0
                 ? currentUser.branches
-                : currentUser.employeeNumber
-                ? [getBranch(currentUser.employeeNumber)]
-                : [];
+                : (() => {
+                    const own = resolveEffectiveUserBranch(currentUser);
+                    return own ? [own] : [];
+                })();
 
             if (adminBranches.length > 0) {
                 filtered = filtered.filter(user => {
-                    if (!user.employeeNumber || user.employeeNumber.length < 2) return false;
-                    const userBranch = getBranch(user.employeeNumber);
-                    return adminBranches.includes(userBranch);
+                    const userBranch = resolveEffectiveUserBranch(user);
+                    return userBranch && adminBranches.includes(userBranch);
                 });
             }
 
@@ -622,9 +640,9 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, departments, cur
                             Showing users from branches: {currentUser.branches.join(', ')}
                         </p>
                     )}
-                    {currentUser.role === UserRole.ADMIN && (!currentUser.branches || currentUser.branches.length === 0) && currentUser.employeeNumber && (
+                    {currentUser.role === UserRole.ADMIN && (!currentUser.branches || currentUser.branches.length === 0) && resolveEffectiveUserBranch(currentUser) && (
                         <p className="text-sm text-text-muted mt-1">
-                            Showing users from branch: {getBranch(currentUser.employeeNumber)}
+                            Showing users from branch: {resolveEffectiveUserBranch(currentUser)}
                         </p>
                     )}
                 </div>
@@ -783,10 +801,16 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, departments, cur
                                     }}
                                     className="w-full bg-surface-light border border-border rounded-md p-3 focus:ring-primary focus:border-primary"
                                 >
-                                    <option value="">Use employee number branch ({getBranch(editingUser.employeeNumber) || 'N/A'})</option>
-                                    {BRANCH_LIST.map(branch => (
+                                    <option value="">
+                                        Use registered / emp# branch ({resolveEffectiveUserBranch({
+                                            branch: editingUser.branch,
+                                            branchOverride: '',
+                                            employeeNumber: editingUser.employeeNumber,
+                                        }) || 'N/A'})
+                                    </option>
+                                    {branchOptions.map(branch => (
                                         <option key={branch} value={branch}>
-                                            Branch {branch}
+                                            {labelFor(branch)}
                                         </option>
                                     ))}
                                 </select>
@@ -803,7 +827,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, departments, cur
                                     Assigned Branches (Select branches this Admin can view)
                                 </label>
                                 <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                                    {BRANCH_LIST.map(branch => (
+                                    {branchOptions.map(branch => (
                                         <label key={branch} className="flex items-center gap-2 p-3 bg-surface-light rounded-md hover:bg-hover-bg transition-colors cursor-pointer">
                                             <input
                                                 type="checkbox"
@@ -824,7 +848,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, departments, cur
                                                 }}
                                                 className="w-4 h-4 text-primary bg-surface-light border-border rounded focus:ring-primary"
                                             />
-                                            <span className="text-text-primary font-medium">Branch {branch}</span>
+                                            <span className="text-text-primary font-medium">{labelFor(branch)}</span>
                                         </label>
                                     ))}
                                 </div>
@@ -1154,9 +1178,13 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, departments, cur
                                             {currentUser.role === UserRole.SUPER_ADMIN && (
                                                 <>
                                                     <button
-                                                        onClick={() => openPasswordResetModal(user)}
+                                                        onClick={() => {
+                                                            setSuccess(
+                                                                `${user.name} signs in with email/password (${user.email || 'no email'}). They can use “Forgot password?” on the sign-in page, or change password in Profile.`
+                                                            );
+                                                        }}
                                                         className="p-2 text-yellow-400 hover:bg-yellow-500/20 rounded-md transition-colors"
-                                                        title="Reset Password"
+                                                        title="Password help"
                                                     >
                                                         🔑
                                                     </button>

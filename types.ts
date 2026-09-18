@@ -30,11 +30,22 @@ export interface Department {
   ccEmails?: string[]; // Array of email addresses to CC on all department notifications
 }
 
+/** Managed branch catalog (Firestore `branches/{code}`). */
+export interface Branch {
+  id: string; // same as code
+  code: string;
+  name: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt?: string;
+}
+
 export interface User {
   id: string;
   name: string;
   email: string; // User-provided email address (displayed in profile, can be duplicate across users)
   employeeNumber: string; // Unique employee number used for login
+  branch?: string; // Explicit branch code set at registration (or later by admin)
   branchOverride?: string; // Optional branch override set by Super Admin (e.g., '10')
   payGroup?: '5' | '6' | string; // '5' = 5 working days, '6' = 6 working days including Saturday
   role: UserRole;

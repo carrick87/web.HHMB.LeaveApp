@@ -1,35 +1,84 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow public read access to employees collection for sign-up
-    match /employees/{document=**} {
-      allow read: if true;
-      allow write: if request.auth != null && 
+    // Branch catalog — authenticated read; Super Admin write
+    match /branches/{branchId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null &&
                    get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Super Admin';
+    }
+
+    // Allow authenticated Admin/Super Admin to manage employee master (branch register + upload)
+    match /employees/{document=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && (
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Super Admin' ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin'
+      );
     }
     
     // Users collection - users can read their own data, admins can read all
     // Allow create for sign-up (user is authenticated after Firebase Auth creates account)
     match /users/{userId} {
+      function requesterDoc() {
+        return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      }
       function getRequesterRole() {
-        return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+        return requesterDoc().role;
+      }
+      function isSuperAdmin() {
+        return getRequesterRole() == 'Super Admin';
+      }
+      function isAdmin() {
+        return getRequesterRole() == 'Admin';
+      }
+      function adminBranchCodes() {
+        return ('branches' in requesterDoc() && requesterDoc().branches is list && requesterDoc().branches.size() > 0)
+          ? requesterDoc().branches
+          : (('branchOverride' in requesterDoc() && requesterDoc().branchOverride is string && requesterDoc().branchOverride.size() > 0)
+            ? [requesterDoc().branchOverride]
+            : (('branch' in requesterDoc() && requesterDoc().branch is string && requesterDoc().branch.size() > 0)
+              ? [requesterDoc().branch]
+              : [requesterDoc().employeeNumber[0:2]]));
+      }
+      function targetUserBranch() {
+        return ('branchOverride' in resource.data && resource.data.branchOverride is string && resource.data.branchOverride.size() > 0)
+          ? resource.data.branchOverride
+          : (('branch' in resource.data && resource.data.branch is string && resource.data.branch.size() > 0)
+            ? resource.data.branch
+            : resource.data.employeeNumber[0:2]);
+      }
+      // Admin may only set isActive / departmentId on Normal users in assigned branches
+      function adminCanManageNormalUser() {
+        return isAdmin()
+          && resource.data.role == 'Normal'
+          && request.resource.data.role == 'Normal'
+          && targetUserBranch() in adminBranchCodes()
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['isActive', 'departmentId', 'updatedAt']);
       }
 
       // Allow reading own data or if admin/super admin
       allow read: if request.auth != null && (
         request.auth.uid == userId ||
-        getRequesterRole() == 'Admin' ||
-        getRequesterRole() == 'Super Admin'
+        isAdmin() ||
+        isSuperAdmin()
       );
 
-      // Allow writing own data OR if Admin/Super Admin (for updating other users)
-      allow write: if request.auth != null && (
+      // Allow creating own user document, or Admin/Super Admin provisioning accounts
+      allow create: if request.auth != null && (
         request.auth.uid == userId ||
-        getRequesterRole() == 'Admin' ||
-        getRequesterRole() == 'Super Admin'
+        isAdmin() ||
+        isSuperAdmin()
       );
-      // Allow creating own user document (after Firebase Auth creates account)
-      allow create: if request.auth != null && request.auth.uid == userId;
+
+      allow update: if request.auth != null && (
+        request.auth.uid == userId ||
+        isSuperAdmin() ||
+        adminCanManageNormalUser()
+      );
+
+      allow delete: if request.auth != null && isSuperAdmin();
     }
     
     // Allow querying users collection to check for duplicate employee numbers during sign-up
@@ -43,11 +92,50 @@ service cloud.firestore {
       allow list: if true; // Allow queries to check for duplicate employee numbers
     }
     
-    // Departments - authenticated users can read, admins can write
+    // Departments - authenticated users can read; Super Admin full write;
+    // Admin can create/update for assigned branches; delete is Super Admin only
     match /departments/{document=**} {
+      function requesterDoc() {
+        return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      }
+      function requesterRole() {
+        return requesterDoc().role;
+      }
+      function isSuperAdmin() {
+        return requesterRole() == 'Super Admin';
+      }
+      function isAdmin() {
+        return requesterRole() == 'Admin';
+      }
+      function adminBranchCodes() {
+        return ('branches' in requesterDoc() && requesterDoc().branches is list && requesterDoc().branches.size() > 0)
+          ? requesterDoc().branches
+          : (('branchOverride' in requesterDoc() && requesterDoc().branchOverride is string && requesterDoc().branchOverride.size() > 0)
+            ? [requesterDoc().branchOverride]
+            : [requesterDoc().employeeNumber[0:2]]);
+      }
+      function adminCanCreateDepartment() {
+        return isAdmin()
+          && request.resource.data.keys().hasAll(['name', 'branch'])
+          && request.resource.data.branch is string
+          && request.resource.data.branch in adminBranchCodes();
+      }
+      // Admin may update departments only when both the existing and new branch
+      // codes are in their assigned branches (User Management `branches`).
+      function adminCanUpdateDepartment() {
+        return isAdmin()
+          && 'branch' in resource.data
+          && resource.data.branch is string
+          && resource.data.branch in adminBranchCodes()
+          && 'branch' in request.resource.data
+          && request.resource.data.branch is string
+          && request.resource.data.branch in adminBranchCodes();
+      }
+
       allow read: if request.auth != null;
-      allow write: if request.auth != null && 
-                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Super Admin';
+      allow create: if request.auth != null && (isSuperAdmin() || adminCanCreateDepartment());
+      allow update: if request.auth != null && (isSuperAdmin() || adminCanUpdateDepartment());
+      allow delete: if request.auth != null && isSuperAdmin();
     }
     
     // Leave requests - users can read their own, approvers can read department requests
@@ -195,6 +283,50 @@ service cloud.firestore {
         getUserRole() == 'Admin' ||
         getUserRole() == 'Super Admin'
       );
+    }
+
+    // Provisioned Google accounts — Admin SDK writes; signed-in user may read/claim their own invite
+    match /provisionedUsers/{emailId} {
+      function requesterDoc() {
+        return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      }
+      function isSuperAdmin() {
+        return requesterDoc().role == 'Super Admin';
+      }
+      function isAdmin() {
+        return requesterDoc().role == 'Admin';
+      }
+      function authEmail() {
+        return request.auth.token.email != null
+          ? request.auth.token.email.lower()
+          : '';
+      }
+
+      allow read: if request.auth != null && (
+        emailId == authEmail() ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (isAdmin() || isSuperAdmin()))
+      );
+
+      // Claim invite on first Google sign-in (set claimedUid only)
+      allow update: if request.auth != null
+        && emailId == authEmail()
+        && resource.data.email == authEmail()
+        && (!('claimedUid' in resource.data) || resource.data.claimedUid == null || resource.data.claimedUid == request.auth.uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['claimedUid', 'updatedAt']);
+
+      allow create: if request.auth != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && (isAdmin() || isSuperAdmin())
+        && request.resource.data.keys().hasAll(['email', 'employeeNumber', 'name', 'payGroup'])
+        && request.resource.data.email == emailId
+        && request.resource.data.email.matches('.*@harrisons\\.com\\.my');
+
+      allow delete: if request.auth != null && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && isSuperAdmin();
+    }
+
+    // Written only by Cloud Functions (Admin SDK). Clients must not read or write.
+    match /passwordResetAttempts/{document=**} {
+      allow read, write: if false;
     }
   }
 }

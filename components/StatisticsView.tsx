@@ -14,9 +14,10 @@ import {
     LineChart,
     Line,
 } from 'recharts';
-import { User, UserRole, Department, LeaveRequest, LeaveStatus, LeaveType } from '../types';
+import { User, UserRole, Department, LeaveRequest, LeaveStatus, LeaveType, Branch } from '../types';
 import { shouldExcludeDateForLeave } from '../utils/dateUtils';
 import { resolveRequestPayGroup } from '../utils/payGroupUtils';
+import { getEffectiveUserBranch, formatBranchLabel } from '../utils/departmentSettingsHelpers';
 
 /** Measures container width after layout (fixes mobile flex / overflow-hidden giving 0 width). */
 const ChartWrapper: React.FC<{ height: number; children: (width: number) => React.ReactNode }> = ({ height, children }) => {
@@ -66,22 +67,8 @@ interface StatisticsViewProps {
     users: User[];
     departments: Department[];
     leaveRequests: LeaveRequest[];
+    branches: Branch[];
 }
-
-const BRANCH_LIST = ['10', '11', '20', '21', '23', '24', '25', '30', '40', '45'];
-
-const BRANCH_LABELS: Record<string, string> = {
-    '10': 'Sandakan (10)',
-    '11': 'Lahad Datu (11)',
-    '20': 'Kota Kinabalu (20)',
-    '21': 'Kota Marudu (21)',
-    '23': 'Keningau (23)',
-    '24': 'Beaufort (24)',
-    '25': 'Ranau (25)',
-    '30': 'Tawau (30)',
-    '40': 'Labuan (40)',
-    '45': 'Head Office (45)',
-};
 
 const STATUS_COLORS: Record<string, string> = {
     [LeaveStatus.APPROVED]: '#22c55e',
@@ -141,11 +128,6 @@ function formatAvgLeadTime(h: number | null): string {
 function escapeCsvCell(v: string): string {
     if (/[",\n]/.test(v)) return `"${v.replace(/"/g, '""')}"`;
     return v;
-}
-
-function getBranch(employeeNumber: string): string {
-    if (!employeeNumber || employeeNumber.length < 2) return '';
-    return employeeNumber.substring(0, 2);
 }
 
 function resolvePayGroup(request: LeaveRequest, userById: Map<string, User>): string {
@@ -239,7 +221,7 @@ const KpiCard: React.FC<KpiCardProps> = ({ label, value, sub, trend, accent = 't
     </div>
 );
 
-const StatisticsView: React.FC<StatisticsViewProps> = ({ currentUser, users, departments, leaveRequests }) => {
+const StatisticsView: React.FC<StatisticsViewProps> = ({ currentUser, users, departments, leaveRequests, branches }) => {
     const currentYear = new Date().getFullYear();
     const [selectedYear, setSelectedYear] = useState(currentYear);
     const [selectedBranch, setSelectedBranch] = useState<string>('all');
@@ -247,6 +229,20 @@ const StatisticsView: React.FC<StatisticsViewProps> = ({ currentUser, users, dep
     const [lastUpdated, setLastUpdated] = useState(() => new Date());
     const [branchExpanded, setBranchExpanded] = useState<Record<string, boolean>>({});
     const [deptExpanded, setDeptExpanded] = useState<Record<string, boolean>>({});
+
+    const catalogCodes = useMemo(
+        () => new Set(branches.filter((b) => b.isActive !== false).map((b) => b.code)),
+        [branches]
+    );
+    const branchByCode = useMemo(() => {
+        const map = new Map<string, Branch>();
+        branches.forEach((b) => map.set(b.code, b));
+        return map;
+    }, [branches]);
+    const labelFor = (code: string) => {
+        const b = branchByCode.get(code);
+        return b ? formatBranchLabel(b) : `Branch ${code}`;
+    };
 
     const today = new Date().toISOString().split('T')[0]!;
 
@@ -257,7 +253,7 @@ const StatisticsView: React.FC<StatisticsViewProps> = ({ currentUser, users, dep
         if (currentUser.role === UserRole.ADMIN) {
             const adminBranches = currentUser.branches ?? [];
             return users.filter(u => {
-                const branch = u.branchOverride || getBranch(u.employeeNumber);
+                const branch = getEffectiveUserBranch(u);
                 return adminBranches.includes(branch);
             });
         }
@@ -275,18 +271,22 @@ const StatisticsView: React.FC<StatisticsViewProps> = ({ currentUser, users, dep
     const availableBranches = useMemo<string[]>(() => {
         const set = new Set<string>();
         scopedUsers.forEach(u => {
-            const b = u.branchOverride || getBranch(u.employeeNumber);
-            if (b && BRANCH_LIST.includes(b)) set.add(b);
+            const b = getEffectiveUserBranch(u);
+            if (b && (catalogCodes.size === 0 || catalogCodes.has(b))) set.add(b);
         });
-        return BRANCH_LIST.filter(b => set.has(b));
-    }, [scopedUsers]);
+        const ordered = branches
+            .filter((b) => b.isActive !== false && set.has(b.code))
+            .map((b) => b.code);
+        const extras = [...set].filter((c) => !ordered.includes(c)).sort();
+        return [...ordered, ...extras];
+    }, [scopedUsers, branches, catalogCodes]);
 
     const showBranchFilter = availableBranches.length > 1;
 
     // --- Branch-filtered users ---
     const branchFilteredUsers = useMemo<User[]>(() => {
         if (selectedBranch === 'all') return scopedUsers;
-        return scopedUsers.filter(u => (u.branchOverride || getBranch(u.employeeNumber)) === selectedBranch);
+        return scopedUsers.filter(u => getEffectiveUserBranch(u) === selectedBranch);
     }, [scopedUsers, selectedBranch]);
 
     const branchFilteredUserIds = useMemo(() => new Set(branchFilteredUsers.map(u => u.id)), [branchFilteredUsers]);
@@ -437,7 +437,7 @@ const StatisticsView: React.FC<StatisticsViewProps> = ({ currentUser, users, dep
     // --- Branch Breakdown Table ---
     const branchTableData = useMemo(() => {
         return availableBranches.map(branch => {
-            const branchUsers = scopedUsers.filter(u => (u.branchOverride || getBranch(u.employeeNumber)) === branch);
+            const branchUsers = scopedUsers.filter(u => getEffectiveUserBranch(u) === branch);
             const branchUserIds = new Set(branchUsers.map(u => u.id));
             const branchReqs = leaveRequests.filter(r => branchUserIds.has(r.userId));
             const branchYearReqs = branchReqs.filter(r => {
@@ -452,7 +452,7 @@ const StatisticsView: React.FC<StatisticsViewProps> = ({ currentUser, users, dep
             const pct = active > 0 ? ((onLeave / active) * 100).toFixed(1) : '0.0';
             return {
                 branch,
-                label: BRANCH_LABELS[branch] ?? `Branch ${branch}`,
+                label: labelFor(branch),
                 total: branchUsers.length,
                 active,
                 applied,
@@ -463,7 +463,7 @@ const StatisticsView: React.FC<StatisticsViewProps> = ({ currentUser, users, dep
                 ytd: branchYearReqs.length,
             };
         });
-    }, [availableBranches, scopedUsers, leaveRequests, selectedYear, today, usersWithAnyRequest, userById]);
+    }, [availableBranches, scopedUsers, leaveRequests, selectedYear, today, usersWithAnyRequest, userById, branchByCode]);
 
     const dayOfWeekData = useMemo(() => {
         const counts: Record<string, number> = {};
@@ -533,11 +533,10 @@ const StatisticsView: React.FC<StatisticsViewProps> = ({ currentUser, users, dep
         const totals: Record<string, number> = {};
         filteredRequests.forEach(r => {
             const u = userById.get(r.userId);
-            const b = u ? (u.branchOverride || getBranch(u.employeeNumber)) : '';
-            const label =
-                b && BRANCH_LIST.includes(b)
-                    ? (BRANCH_LABELS[b] ?? b)
-                    : (b ? `Branch ${b}` : 'Unknown');
+            const b = u ? getEffectiveUserBranch(u) : '';
+            const label = b
+                ? (catalogCodes.size === 0 || catalogCodes.has(b) ? labelFor(b) : `Branch ${b}`)
+                : 'Unknown';
             totals[label] = (totals[label] ?? 0) + 1;
         });
         const total = filteredRequests.length || 1;
@@ -551,14 +550,14 @@ const StatisticsView: React.FC<StatisticsViewProps> = ({ currentUser, users, dep
                 pct: ((count / total) * 100).toFixed(1),
                 fill: palette[i % palette.length]!,
             }));
-    }, [filteredRequests, userById]);
+    }, [filteredRequests, userById, catalogCodes, branchByCode]);
 
     /** Branch → departments (A–Z) → employees (A–Z) for drill-down table. */
     const departmentHierarchy = useMemo(() => {
         const byBranch = new Map<string, User[]>();
         branchFilteredUsers.forEach(u => {
-            const raw = u.branchOverride || getBranch(u.employeeNumber);
-            const key = raw && BRANCH_LIST.includes(raw) ? raw : '_other';
+            const raw = getEffectiveUserBranch(u);
+            const key = raw && (catalogCodes.size === 0 || catalogCodes.has(raw)) ? raw : '_other';
             if (!byBranch.has(key)) byBranch.set(key, []);
             byBranch.get(key)!.push(u);
         });
@@ -623,7 +622,7 @@ const StatisticsView: React.FC<StatisticsViewProps> = ({ currentUser, users, dep
             const label =
                 branchCode === '_other'
                     ? 'Other / unmapped branch'
-                    : (BRANCH_LABELS[branchCode] ?? `Branch ${branchCode}`);
+                    : labelFor(branchCode);
 
             return { branch: branchCode, label, aggregate, departments };
         });
@@ -767,7 +766,7 @@ const StatisticsView: React.FC<StatisticsViewProps> = ({ currentUser, users, dep
                         >
                             <option value="all">All Branches</option>
                             {availableBranches.map(b => (
-                                <option key={b} value={b}>{BRANCH_LABELS[b] ?? b}</option>
+                                <option key={b} value={b}>{labelFor(b)}</option>
                             ))}
                         </select>
                     </div>
@@ -799,7 +798,7 @@ const StatisticsView: React.FC<StatisticsViewProps> = ({ currentUser, users, dep
 
                 <span className="w-full sm:w-auto sm:ml-auto text-xs text-text-muted text-right">
                     Showing {filteredRequests.length} request{filteredRequests.length !== 1 ? 's' : ''}
-                    {selectedBranch !== 'all' ? ` · ${BRANCH_LABELS[selectedBranch] ?? selectedBranch}` : ''}
+                    {selectedBranch !== 'all' ? ` · ${labelFor(selectedBranch)}` : ''}
                     {selectedLeaveType !== 'all' ? ` · ${selectedLeaveType}` : ''}
                 </span>
             </div>
