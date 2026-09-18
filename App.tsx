@@ -409,527 +409,32 @@ const ChangelogView: React.FC = () => {
             <h1 className="text-3xl font-bold text-text-primary mb-6">Changelog</h1>
             
             <div className="space-y-8">
-                {/* Version 0.1.0-beta */}
+                {/* Version 0.1.1-beta */}
                 <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
                     <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 0.1.0-beta</h2>
+                        <h2 className="text-2xl font-semibold text-text-primary">Version 0.1.1-beta</h2>
                         <span className="text-sm text-text-muted">18 Sep 2026 (Latest)</span>
                     </div>
                     <ul className="space-y-2 text-text-secondary">
-                        <li>• HHMB LeaveApp beta: Harrisons Holdings (Malaysia) Berhad branding and @harrisons.com.my email sign-in</li>
+                        <li>• Ported HSSB LeaveApp dark theme (atmosphere gradients, shell chrome, login card styling)</li>
+                        <li>• HH logo favicon and page title: LeaveApp - Harrisons Holdings (Malaysia) Berhad</li>
+                        <li>• Changelog trimmed to HHMB releases only (0.1.0-beta is the first release)</li>
+                    </ul>
+                </div>
+
+                {/* Version 0.1.0-beta — first HHMB release */}
+                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-2xl font-semibold text-text-primary">Version 0.1.0-beta</h2>
+                        <span className="text-sm text-text-muted">18 Sep 2026</span>
+                    </div>
+                    <ul className="space-y-2 text-text-secondary">
+                        <li>• First release of HHMB LeaveApp for Harrisons Holdings (Malaysia) Berhad</li>
+                        <li>• Email/password sign-in for @harrisons.com.my accounts (admin-provisioned)</li>
+                        <li>• Core leave workflow: apply, approve, reject, cancel, amend, calendar, and statistics</li>
                         <li>• Manageable branches catalog in Firestore (Super Admin Branches page: add, edit, deactivate, delete with confirmation)</li>
-                        <li>• Employee registration requires an explicit branch selection; user.branch is stored on create (no emp-number prefix default)</li>
-                        <li>• Effective branch helper: branchOverride → branch → legacy emp-number prefix; UI filters use Firestore branch options</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.5.1 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.5.1</h2>
-                        <span className="text-sm text-text-muted">22 Jul 2026, 4:07 PM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Dashboard: show latest iOS and Android app versions under the mobile store badges</li>
-                        <li>• Approvals: fix row hover highlight staying in sync across request details and the sticky Action column</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.5.0 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.5.0</h2>
-                        <span className="text-sm text-text-muted">15 Jul 2026, 10:57 PM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Redesign Department Settings as a master–detail workspace (list + detail)</li>
-                        <li>• Search and branch filter; manage Approvers, CC emails, and Members with autosave from one place</li>
-                        <li>• Dual-pane layout with independent scroll; on mobile, full-screen detail with Back</li>
-                        <li>• Approver/CC as readable full-width rows; detail pane uses the available width</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.4.18 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.4.18</h2>
-                        <span className="text-sm text-text-muted">15 Jul 2026, 3:38 PM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Sign-in and sign-up: Google Play badge shown beside App Store under “Also available on mobile”</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.4.17 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.4.17</h2>
-                        <span className="text-sm text-text-muted">15 Jul 2026, 3:33 PM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Approvals: requester leave insight summarizes YTD patterns, notice vs usual, duration, and last similar leave</li>
-                        <li>• Insight panel redesigned to match Leave Summary (structured sections, leave-type dots, request/day pills)</li>
-                        <li>• Replaced hard-to-see expand chevron with a labeled Details / Hide control (desktop Actions column and mobile full-width)</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.4.16 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.4.16</h2>
-                        <span className="text-sm text-text-muted">15 Jul 2026, 2:57 PM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Leave Approved email header and accents now use leave-type colors (matching Approvals/History palette)</li>
-                        <li>• Updated footer copyright year to 2026</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.4.15 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.4.15</h2>
-                        <span className="text-sm text-text-muted">15 Jul 2026, 2:25 PM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Approval Requests and Leave History rows now show a 6px left accent bar colored by leave type</li>
-                        <li>• Shared leave-type color helper used by Approvals, History, and Calendar for consistent palette</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.4.14 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.4.14</h2>
-                        <span className="text-sm text-text-muted">8 Jul 2026, 8:52 AM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Added Google Play badge on Dashboard linking to HAR LeaveApp on Android</li>
-                        <li>• New reusable GooglePlayBadge component with official Google Play badge artwork</li>
-                        <li>• Updated "Take LeaveApp on the go" copy to reference phone instead of iPhone only</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.4.13 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.4.13</h2>
-                        <span className="text-sm text-text-muted">6 Jul 2026, 3:31 PM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Fixed Dashboard "Monthly Leave Days" chart selecting the wrong month when clicking a bar — April and other non-contiguous months now show the correct leave details</li>
-                        <li>• Added favicon and apple-touch-icon assets with proper link tags for browser tabs and home-screen shortcuts</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.4.12 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.4.12</h2>
-                        <span className="text-sm text-text-muted">6 Jul 2026, 10:31 AM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Fixed supporting document downloads on iOS Safari appending a .txt extension to every attachment</li>
-                        <li>• Replaced data-URL downloads with blob-based handling and correct MIME types for PDF and image attachments</li>
-                        <li>• Added iOS Web Share fallback so approvers can save attachments via the native share sheet when needed</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.4.11 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.4.11</h2>
-                        <span className="text-sm text-text-muted">3 Jul 2026, 8:33 PM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Improved approval expanded view with left-aligned Reason, Leave Summary, and Supporting Documents</li>
-                        <li>• Moved Supporting Documents below Leave Summary for a clearer review flow</li>
-                        <li>• Replaced white attachment cards with dark-themed rows and a more visible Download button</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.4.10 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.4.10</h2>
-                        <span className="text-sm text-text-muted">22 Jun 2026, 12:29 AM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Fixed User Profile "Created At" showing Invalid Date by supporting both ISO strings and Firestore timestamps</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.4.9 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.4.9</h2>
-                        <span className="text-sm text-text-muted">22 Jun 2026, 12:21 AM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Reduced Firestore reads for normal (non-approver) users with scoped real-time listeners on own profile and leave requests</li>
-                        <li>• Department approver user docs fetched only as needed for Apply leave and email notifications</li>
-                        <li>• Leave balance history on Dashboard and Leave Summary now reads only the latest record instead of full history</li>
-                        <li>• Admin, Super Admin, and Normal approver data loading unchanged</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.4.8 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.4.8</h2>
-                        <span className="text-sm text-text-muted">15 Jun 2026, 12:45 PM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Added App Store badge on login and sign-up pages linking to HAR LeaveApp on iPhone</li>
-                        <li>• Added "Take LeaveApp on the go" App Store section on Dashboard, placed below Total Annual Leave Days and Pending Requests</li>
-                        <li>• New reusable AppStoreBadge component with official Apple badge artwork</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.4.7 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.4.7</h2>
-                        <span className="text-sm text-text-muted">5 Jun 2026, 11:05 AM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Fixed pay group 6 Saturday leave showing 1 working day in the approval Leave Summary but 0 working days in approval emails — emails, export, and statistics now use the same pay group resolution as the Leave Summary</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.4.6 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.4.6</h2>
-                        <span className="text-sm text-text-muted">4 Jun 2026, 04:12 PM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Fixed Apply for Leave live summary for Maternity and Paternity — it now uses the selected leave type instead of always calculating as Annual Leave, so calendar days and excluded-weekend sections display correctly</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.4.5 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.4.5</h2>
-                        <span className="text-sm text-text-muted">4 Jun 2026, 03:30 PM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Maternity and Paternity leave now count calendar days — Saturdays, Sundays, and public holidays are included in leave day totals</li>
-                        <li>• Calendar days apply consistently on the apply form, leave summary, approvals and history tables, Excel export, leave calendar, dashboard monthly chart, statistics, and email notifications</li>
-                        <li>• Fixed History page export so it correctly exports only your own leave requests</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.4.4 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.4.4</h2>
-                        <span className="text-sm text-text-muted">9 May 2026, 09:30 PM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Statistics "On Leave Today" KPI, branch table column, and department drill-down now respect each employee's working week — paygroup 5 staff are no longer counted as on leave on Saturdays, and nobody is counted on Sundays or public holidays</li>
-                        <li>• Paygroup 6 staff (6-day work week) continue to show as on leave on Saturdays, unchanged</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.4.3 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.4.3</h2>
-                        <span className="text-sm text-text-muted">9 May 2026, 09:00 PM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Fixed Approvals page browser hang for Super Admins / users with many requests (commit time per render reduced by ~60%, JS work cached across re-renders)</li>
-                        <li>• Approvals page now renders only the desktop table or the mobile cards based on viewport, instead of mounting both views simultaneously</li>
-                        <li>• User and department lookups inside the Approvals page now use O(1) maps instead of linear scans over 1000+ users / 250+ departments</li>
-                        <li>• Approval list filter and sort results are memoized, so re-renders triggered by background data updates no longer recompute the full list</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.4.2 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.4.2</h2>
-                        <span className="text-sm text-text-muted">9 May 2026, 08:20 AM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Fixed Dashboard "Monthly Leave Days" chart briefly showing "No approved leave days yet" on first login over slow connections — it now shows a loading skeleton until your leave data arrives, then renders the chart</li>
-                        <li>• Firestore listener errors are now surfaced in the browser console instead of being silently swallowed, making future connectivity issues easier to diagnose</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.4.1 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.4.1</h2>
-                        <span className="text-sm text-text-muted">9 May 2026, 02:51 AM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Fixed runtime error on the Changelog page introduced in v1.4 (a literal `{'{currentYear}'}` placeholder in the changelog text)</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.4 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.4</h2>
-                        <span className="text-sm text-text-muted">9 May 2026, 02:47 AM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Dashboard: removed the "Approved Annual Leave" KPI card (now a 2-column KPI row of Total Annual Leave Days and Pending Requests)</li>
-                        <li>• Dashboard: added a "Monthly Leave Days" stacked bar chart for the current year, showing approved leave days you've taken each month, broken down by leave type (Sick = red)</li>
-                        <li>• Dashboard: click any month bar or month label to drill down and see the underlying leave dates (date range, time, reason, days in that month, with cross-month splits noted)</li>
-                        <li>• Day allocation respects pay-group weekends, public holidays, and AM/PM half-days, so leaves spanning month boundaries are split correctly</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.3 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.3</h2>
-                        <span className="text-sm text-text-muted">7 May 2026, 03:54 PM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Statistics: expanded KPI row with year-over-year trends, average approval time, approval rate, and last-updated timestamp</li>
-                        <li>• Statistics: added CSV export of the currently filtered requests</li>
-                        <li>• Statistics: added "Applied leave (ever)" metric — active employees who have ever applied leave vs total active, by branch and overall</li>
-                        <li>• Statistics: replaced the donut with "Requests by branch" plus a quick insights panel, and added a weekday line chart and leave balance snapshot</li>
-                        <li>• Statistics: replaced the flat department list with a Branch → Department → Employee drill-down table (departments sorted A–Z)</li>
-                        <li>• Fixed login race: "Department Assignment Pending" warning no longer appears for users on slow connections while departments are still loading</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.2.1 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.2.1</h2>
-                        <span className="text-sm text-text-muted">4 May 2026, 01:15 PM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Fixed Statistics charts appearing as tiny icons on mobile (mobile CSS no longer forces 20px sizing on recharts chart SVGs)</li>
-                        <li>• Improved Statistics chart sizing with measured widths, full-bleed layout on small screens, and corrected branch display labels</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.2 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.2</h2>
-                        <span className="text-sm text-text-muted">4 May 2026, 10:29 AM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Added Statistics dashboard page with KPI cards, monthly request trend chart, status breakdown pie chart, leave type breakdown, and branch headcount table</li>
-                        <li>• Statistics page scoped by role: Super Admin sees all branches, Admin sees their branches, Approvers see their departments</li>
-                        <li>• Added password auto-generation on Reset Password modal with Regenerate button and Show/Hide toggle</li>
-                        <li>• Added copyable professional reply message after a successful password reset (password shown once, cleared on dismiss)</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.1 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.1</h2>
-                        <span className="text-sm text-text-muted">28 Apr 2026, 03:16 PM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Added Paygroup support to Employee Master upload and listing (5-day and 6-day workers)</li>
-                        <li>• Updated leave calendar and working-day calculations so paygroup 6 includes Saturday</li>
-                        <li>• Added Paygroup display and fallback syncing in User Profile</li>
-                        <li>• Added sortable and filterable Paygroup column in User Management</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.0.12 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.0.12</h2>
-                        <span className="text-sm text-text-muted">24 Apr 2026, 03:10 PM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Added Employee Master List export to Excel including Branch and Sign up status columns</li>
-                        <li>• Updated Approval export to exactly match table filters (status, month/year, employee number, employee name)</li>
-                        <li>• Updated approvals visibility: own approved/cancelled records are now shown, while own actionable requests remain hidden</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.0.11 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.0.11</h2>
-                        <span className="text-sm text-text-muted">24 Apr 2026, 12:09 AM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Added Super Admin branch override when editing a user (optional branch vs employee number prefix)</li>
-                        <li>• Added Branch column (sortable and filterable) to User Management between employee number and name</li>
-                        <li>• Removed per-row Restore Leave Requests action button from User Management (restore modal and logic retained)</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.0.10 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.0.10</h2>
-                        <span className="text-sm text-text-muted">22 Apr 2026, 03:43 PM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Updated sign-up fallback leave balance to default to 0 when balance lookup is unavailable</li>
-                        <li>• Added date and time labels for each changelog version entry</li>
-                        <li>• Standardized changelog time display to 12-hour format (hh:mm AM/PM)</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.0.9 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.0.9</h2>
-                        <span className="text-sm text-text-muted">22 Apr 2026, 03:06 PM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Updated footer and login page version display to v1.0.9</li>
-                        <li>• Updated footer and login page copyright text</li>
-                        <li>• Added duplicate department name check within each branch in Department Settings</li>
-                        <li>• Sorted department dropdown in Dashboard TO DO - Department Assignment section</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.0.8 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.0.8</h2>
-                        <span className="text-sm text-text-muted">12 Feb 2026, 01:11 AM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Moved Release Notes from footer to sidebar</li>
-                        <li>• Added Changelog / Release Notes page (v1.0.0 to v1.0.8)</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.0.7 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.0.7</h2>
-                        <span className="text-sm text-text-muted">10 Feb 2026, 10:54 PM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Added "LeaveApp" title to the sign-in page</li>
-                        <li>• Removed "Sign In" label below the title</li>
-                        <li>• Updated password reset flow to direct users to contact their administrator</li>
-                        <li>• Increased font size of password reset message</li>
-                        <li>• Sorted department dropdown by department name in user management</li>
-                        <li>• Made leave days column uneditable in user management</li>
-                        <li>• Limited export function in approval view to only show data that admins are allowed to see</li>
-                        <li>• Added "as of" date for total annual leave day balance in leave summary</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.0.6 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.0.6</h2>
-                        <span className="text-sm text-text-muted">10 Feb 2026, 10:29 PM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Added public holiday display in calendar month view</li>
-                        <li>• Added public holiday display in calendar week view</li>
-                        <li>• Hide user leave requests on public holidays in both month and week views</li>
-                        <li>• Removed explanatory note about pending leave days from dashboard</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.0.5 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.0.5</h2>
-                        <span className="text-sm text-text-muted">10 Feb 2026, 02:10 PM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Restricted "Leave Balance Upload" view to Super Admin only</li>
-                        <li>• Restricted "Public Holidays" view to Super Admin only</li>
-                        <li>• Restricted "User Management" view to Super Admin only</li>
-                        <li>• Fixed Admin user history view to only show their own leave history</li>
-                        <li>• Removed department assignment section from Admin user dashboard</li>
-                        <li>• Ensured admins without approver role cannot action on approval requests</li>
-                        <li>• Deployed Firestore security rules</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.0.4 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.0.4</h2>
-                        <span className="text-sm text-text-muted">07 Feb 2026, 04:50 PM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Fixed bug where not all users could see custom leave types</li>
-                        <li>• Standardized export button size across all views (History, Approval, Calendar)</li>
-                        <li>• Moved "Clear All Leave Requests" button to Tools view</li>
-                        <li>• Moved "Export Departments" button to Tools view</li>
-                        <li>• Changed "Employee Name" column to "Name" in approval view</li>
-                        <li>• Fixed alignment of "Approve" and "Reject" buttons in approval view</li>
-                        <li>• Ensured action buttons are visible on all screen sizes, including iPad Pro</li>
-                        <li>• Standardized font sizes and improved alignment in approval view for small screen resolutions</li>
-                        <li>• Added version numbers to footer and login page</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.0.3 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.0.3</h2>
-                        <span className="text-sm text-text-muted">31 Jan 2026, 11:22 PM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Excluded weekends and public holidays from calendar and approval views</li>
-                        <li>• Excluded weekends and public holidays from exported leave data</li>
-                        <li>• Ensured deleted users' leave requests remain visible in approval and calendar views</li>
-                        <li>• Added complete user deletion functionality while retaining leave requests</li>
-                        <li>• Implemented automatic restoration of leave requests and approver assignments based on employeeNumber</li>
-                        <li>• Added direct password reset functionality for Super Admins</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.0.2 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.0.2</h2>
-                        <span className="text-sm text-text-muted">06 Feb 2026, 08:24 PM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Added new custom leave types functionality</li>
-                        <li>• Implemented reordering of leave types in Leave Type Configuration page</li>
-                        <li>• Set calendar view to start on Monday</li>
-                        <li>• Added "MON, TUE" labels to calendar day headers</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.0.1 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.0.1</h2>
-                        <span className="text-sm text-text-muted">01 Feb 2026, 07:09 PM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Removed confirmation emails to requester after leave application</li>
-                        <li>• Initial version number display</li>
-                    </ul>
-                </div>
-
-                {/* Version 1.0.0 */}
-                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-2xl font-semibold text-text-primary">Version 1.0.0</h2>
-                        <span className="text-sm text-text-muted">07 Sep 2025, 10:36 AM</span>
-                    </div>
-                    <ul className="space-y-2 text-text-secondary">
-                        <li>• Initial release of LeaveApp</li>
-                        <li>• Core leave application functionality</li>
-                        <li>• User authentication and role-based access control</li>
-                        <li>• Leave request submission and approval workflow</li>
-                        <li>• Calendar view for leave tracking</li>
-                        <li>• Department management</li>
-                        <li>• Email notifications</li>
-                        <li>• Leave balance management</li>
+                        <li>• Employee registration requires an explicit branch selection; user.branch is stored on create</li>
+                        <li>• Effective branch: branchOverride → branch → legacy emp-number prefix; UI filters use Firestore branch options</li>
                     </ul>
                 </div>
             </div>
@@ -4830,14 +4335,17 @@ const CalendarView: React.FC<{
 };
 
 // --- AUTHENTICATION COMPONENTS ---
+const authInputClassName =
+    'auth-login-input w-full bg-surface-light border border-border rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary';
+
 const AuthFormContainer: React.FC<{ title: string, children: React.ReactNode }> = ({ title, children }) => {
-    const appVersion = '0.1.0-beta';
+    const appVersion = '0.1.1-beta';
     return (
-        <div className="min-h-screen flex items-center justify-center bg-background animate-fade-in">
-            <div className="w-full max-w-md p-8 space-y-8 bg-surface rounded-xl shadow-lg">
+        <div className="relative min-h-screen flex items-center justify-center app-atmosphere animate-fade-in overflow-hidden px-4 py-8">
+            <div className="relative w-full max-w-md p-8 space-y-6 bg-surface rounded-2xl shadow-elegant-lg shadow-[0_25px_50px_-12px_rgba(99,102,241,0.15)] border border-border/40">
                 <div className="text-center">
                     <div className="flex flex-col items-center mb-4">
-                        <AppLogo className="h-16 w-auto" />
+                        <AppLogo className="h-16 w-16 rounded-2xl shadow-sm" />
                     </div>
                     <h2 className="text-3xl font-bold text-text-primary">{title}</h2>
                     <p className="mt-2 text-xs font-medium tracking-[0.15em] uppercase text-text-muted">
@@ -4845,7 +4353,7 @@ const AuthFormContainer: React.FC<{ title: string, children: React.ReactNode }> 
                     </p>
                 </div>
                 {children}
-                <div className="text-center pt-4">
+                <div className="text-center pt-4 border-t border-border/60">
                     <p className="text-slate-400 text-sm">© 2026 Harrisons Holdings (Malaysia) Berhad | v{appVersion}</p>
                 </div>
             </div>
@@ -4956,7 +4464,7 @@ const LoginView: React.FC = () => {
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         required
-                        className="w-full bg-surface-light border-border rounded-md p-3 focus:ring-primary focus:border-primary"
+                        className={authInputClassName}
                     />
                     <input
                         type="email"
@@ -4965,7 +4473,7 @@ const LoginView: React.FC = () => {
                         onChange={(e) => setEmail(e.target.value)}
                         required
                         autoComplete="email"
-                        className="w-full bg-surface-light border-border rounded-md p-3 focus:ring-primary focus:border-primary"
+                        className={authInputClassName}
                     />
                     <input
                         type="password"
@@ -4975,7 +4483,7 @@ const LoginView: React.FC = () => {
                         required
                         minLength={6}
                         autoComplete="new-password"
-                        className="w-full bg-surface-light border-border rounded-md p-3 focus:ring-primary focus:border-primary"
+                        className={authInputClassName}
                     />
                     <input
                         type="password"
@@ -4985,12 +4493,12 @@ const LoginView: React.FC = () => {
                         required
                         minLength={6}
                         autoComplete="new-password"
-                        className="w-full bg-surface-light border-border rounded-md p-3 focus:ring-primary focus:border-primary"
+                        className={authInputClassName}
                     />
                     <button
                         type="submit"
                         disabled={isSigningIn}
-                        className="w-full bg-primary text-white font-bold py-3 px-4 rounded-md hover:bg-primary-focus transition-colors disabled:opacity-60"
+                        className="w-full bg-primary text-white font-bold py-3 px-4 rounded-lg hover:bg-primary-focus transition-colors disabled:opacity-60"
                     >
                         {isSigningIn ? 'Creating…' : 'Create Super Admin'}
                     </button>
@@ -5014,12 +4522,12 @@ const LoginView: React.FC = () => {
                         onChange={(e) => setEmail(e.target.value)}
                         required
                         autoComplete="email"
-                        className="w-full bg-surface-light border-border rounded-md p-3 focus:ring-primary focus:border-primary"
+                        className={authInputClassName}
                     />
                     <button
                         type="submit"
                         disabled={isSigningIn}
-                        className="w-full bg-primary text-white font-bold py-3 px-4 rounded-md hover:bg-primary-focus transition-colors disabled:opacity-60"
+                        className="w-full bg-primary text-white font-bold py-3 px-4 rounded-lg hover:bg-primary-focus transition-colors disabled:opacity-60"
                     >
                         {isSigningIn ? 'Sending…' : 'Send reset link'}
                     </button>
@@ -5051,7 +4559,7 @@ const LoginView: React.FC = () => {
                         onChange={(e) => setEmail(e.target.value)}
                         required
                         autoComplete="email"
-                        className="w-full bg-surface-light border-border rounded-md p-3 focus:ring-primary focus:border-primary"
+                        className={authInputClassName}
                     />
                     <input
                         type="password"
@@ -5060,12 +4568,12 @@ const LoginView: React.FC = () => {
                         onChange={(e) => setPassword(e.target.value)}
                         required
                         autoComplete="current-password"
-                        className="w-full bg-surface-light border-border rounded-md p-3 focus:ring-primary focus:border-primary"
+                        className={authInputClassName}
                     />
                     <button
                         type="submit"
                         disabled={isSigningIn}
-                        className="w-full bg-primary text-white font-bold py-3 px-4 rounded-md hover:bg-primary-focus transition-colors disabled:opacity-60"
+                        className="w-full bg-primary text-white font-bold py-3 px-4 rounded-lg hover:bg-primary-focus transition-colors disabled:opacity-60"
                     >
                         {isSigningIn ? 'Signing in…' : 'Sign In'}
                     </button>
@@ -5752,9 +5260,9 @@ const AppShell: React.FC<{
     );
 
     const Footer: React.FC = () => {
-        const appVersion = '0.1.0-beta'; // Application version
+        const appVersion = '0.1.1-beta'; // Application version
         return (
-            <footer className="bg-slate-800 border-t border-slate-700 p-4 text-center">
+            <footer className="bg-slate-800/80 border-t border-slate-700/80 p-4 text-center backdrop-blur-sm">
                 <p className="text-slate-400 text-sm">© 2026 Harrisons Holdings (Malaysia) Berhad | v{appVersion}</p>
             </footer>
         );
@@ -5784,7 +5292,7 @@ const AppShell: React.FC<{
     }, [mobileSidebarOpen]);
 
     return (
-        <div className="flex h-screen bg-background text-text-primary overflow-hidden">
+        <div className="flex h-screen app-atmosphere text-text-primary overflow-hidden">
             {/* Mobile Sidebar Overlay */}
             <div 
                 className={`mobile-sidebar-overlay ${mobileSidebarOpen ? '' : 'hidden'}`}
@@ -5792,28 +5300,31 @@ const AppShell: React.FC<{
             />
 
             {/* Mobile Sidebar */}
-            <div className={`mobile-sidebar flex flex-col ${mobileSidebarOpen ? 'open' : ''}`}>
-                <div className="flex-shrink-0 p-4 border-b border-border">
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                            <AppLogo className="h-10 w-auto" />
-                            <div>
-                                <p className="text-sm text-text-secondary">Welcome back</p>
-                                <p className="font-semibold text-base">{currentUser.name}</p>
-                                <p className="text-xs text-text-muted">{currentUser.employeeNumber}</p>
+            <div className={`mobile-sidebar app-atmosphere flex flex-col ${mobileSidebarOpen ? 'open' : ''}`}>
+                <div className="flex-shrink-0 p-4 border-b border-border/60">
+                    <div className="flex items-start justify-between gap-2 mb-4">
+                        <div className="flex items-center gap-3 min-w-0">
+                            <AppLogo className="h-11 w-11 rounded-xl shrink-0 shadow-sm" />
+                            <div className="min-w-0">
+                                <p className="text-sm font-bold tracking-wide text-text-primary leading-tight">HHMB LeaveApp</p>
                             </div>
                         </div>
                         <button 
                             onClick={() => setMobileSidebarOpen(false)}
-                            className="mobile-menu-button"
+                            className="mobile-menu-button shrink-0"
                             aria-label="Close menu"
                         >
                             <XIcon className="w-6 h-6" />
                         </button>
                     </div>
+                    <div className="min-w-0">
+                        <p className="text-xs text-text-muted">Welcome back,</p>
+                        <p className="font-semibold text-sm text-text-primary uppercase truncate">{currentUser.name}</p>
+                        <p className="text-xs text-text-muted truncate">{currentUser.employeeNumber}</p>
+                    </div>
                 </div>
                 
-                <nav className="flex-1 p-4 space-y-2 overflow-y-auto -webkit-overflow-scrolling-touch min-h-0">
+                <nav className="flex-1 p-4 space-y-1 overflow-y-auto -webkit-overflow-scrolling-touch min-h-0">
                     <NavItem icon={<DashboardIcon className="w-5 h-5"/>} label="Dashboard" view="dashboard" isMobile />
                     <NavItem icon={<CalendarIcon className="w-5 h-5"/>} label="Apply for Leave" view="apply" isMobile />
                     <NavItem icon={<HistoryIcon className="w-5 h-5"/>} label="Leave History" view="history" isMobile />
@@ -5844,13 +5355,13 @@ const AppShell: React.FC<{
                     )}
                 </nav>
                 
-                <div className="flex-shrink-0 p-4 border-t border-border">
+                <div className="flex-shrink-0 p-4 border-t border-border/60">
                     <button 
                         onClick={() => {
                             signOutUser();
                             setMobileSidebarOpen(false);
                         }}
-                        className="w-full text-left text-text-muted hover:text-text-primary transition-colors py-3 px-4 rounded-lg hover:bg-surface-light"
+                        className="w-full text-left text-text-muted hover:text-text-primary transition-colors py-3 px-4 rounded-lg hover:bg-white/5"
                     >
                         Sign Out
                     </button>
@@ -5858,10 +5369,15 @@ const AppShell: React.FC<{
             </div>
 
             {/* Desktop Sidebar */}
-            <div className={`desktop-sidebar ${sidebarMinimized ? 'w-16' : 'w-56'} bg-surface border-r border-border flex flex-col transition-all duration-300 ${sidebarMinimized ? 'sidebar-minimized' : ''}`}>
-                <div className="p-3 border-b border-border">
-                    <div className="flex items-center justify-between">
-                        {!sidebarMinimized && <AppLogo className="h-8 w-auto" />}
+            <div className={`desktop-sidebar app-atmosphere ${sidebarMinimized ? 'w-16' : 'w-72'} border-r border-border/40 flex flex-col transition-all duration-300 ${sidebarMinimized ? 'sidebar-minimized' : ''}`}>
+                <div className="p-4 border-b border-border/60">
+                    <div className={`flex items-center ${sidebarMinimized ? 'justify-center' : 'justify-between'} gap-2`}>
+                        {!sidebarMinimized && (
+                            <div className="flex items-center gap-3 min-w-0">
+                                <AppLogo className="h-10 w-10 rounded-xl shrink-0 shadow-sm" />
+                                <p className="text-sm font-bold tracking-wide text-text-primary truncate">HHMB LeaveApp</p>
+                            </div>
+                        )}
                         <button 
                             onClick={() => setSidebarMinimized(!sidebarMinimized)}
                             className="text-text-muted hover:text-text-primary p-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
@@ -5871,9 +5387,9 @@ const AppShell: React.FC<{
                         </button>
                     </div>
                     {!sidebarMinimized && (
-                        <div className="mt-2">
-                            <p className="text-xs text-text-secondary">Welcome back</p>
-                            <p className="font-semibold text-sm truncate">{currentUser.name}</p>
+                        <div className="mt-3 min-w-0">
+                            <p className="text-xs text-text-muted">Welcome back,</p>
+                            <p className="font-semibold text-sm text-text-primary uppercase truncate">{currentUser.name}</p>
                             <p className="text-xs text-text-muted truncate">{currentUser.employeeNumber}</p>
                         </div>
                     )}
@@ -5910,10 +5426,10 @@ const AppShell: React.FC<{
                     )}
                     </nav>
                 
-                <div className="p-3 border-t border-border flex-shrink-0">
+                <div className="p-3 border-t border-border/60 flex-shrink-0">
                     <button 
                         onClick={signOutUser}
-                        className="w-full text-left text-text-muted hover:text-text-primary transition-colors py-2 px-2 min-h-[44px] flex items-center"
+                        className="w-full text-left text-text-muted hover:text-text-primary transition-colors py-2 px-2 min-h-[44px] flex items-center rounded-lg hover:bg-white/5"
                     >
                         {!sidebarMinimized ? 'Sign Out' : '↩'}
                     </button>
@@ -6263,7 +5779,7 @@ const App: React.FC = () => {
 
     if (authState.status === 'loading') {
         return (
-            <div className="flex h-screen w-full items-center justify-center bg-background">
+            <div className="flex h-screen w-full items-center justify-center app-atmosphere">
                 <p className="text-text-primary">Loading Application...</p>
             </div>
         );

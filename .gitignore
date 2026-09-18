@@ -51,3 +51,5 @@ google-drive-config.env
 
 # Brainstorm visual companion session files
 .superpowers/
+.vercel
+.env*

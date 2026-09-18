@@ -2,7 +2,7 @@
 
 Leave management web app for **Harrisons Holdings (Malaysia) Berhad**, built with React, TypeScript, Vite, and Firebase.
 
-**Current version:** `0.1.0-beta`
+**Current version:** `0.1.1-beta`
 
 ## Features
 
@@ -57,9 +57,17 @@ Open `http://localhost:5173`.
 
 ## Version History
 
-### v0.1.0-beta (Current)
+### v0.1.1-beta (Current)
 
-- HHMB branding and @harrisons.com.my email/password sign-in
+- Ported HSSB LeaveApp dark theme (atmosphere, shell, login chrome)
+- HH logo favicon and page title: LeaveApp - Harrisons Holdings (Malaysia) Berhad
+- Changelog trimmed to HHMB releases only
+
+### v0.1.0-beta — first release
+
+- First release of HHMB LeaveApp for Harrisons Holdings (Malaysia) Berhad
+- Email/password sign-in for @harrisons.com.my accounts (admin-provisioned)
+- Core leave workflow: apply, approve, reject, cancel, amend, calendar, and statistics
 - Firestore-managed branches (Super Admin CRUD + delete confirmation)
 - Employee registration requires branch select; persists `users.branch`
 - Effective branch: `branchOverride` → `branch` → legacy emp-number prefix
