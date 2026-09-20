@@ -2,7 +2,7 @@
 
 Leave management web app for **Harrisons Holdings (Malaysia) Berhad**, built with React, TypeScript, Vite, and Firebase.
 
-**Current version:** `0.1.1-beta`
+**Current version:** `0.1.2-beta`
 
 ## Features
 
@@ -57,7 +57,13 @@ Open `http://localhost:5173`.
 
 ## Version History
 
-### v0.1.1-beta (Current)
+### v0.1.2-beta (Current)
+
+- Ported HSSB v3.0.7 layout CSS (mobile sidebar close row, Leave Calendar toolbar)
+- Month cells contained so “+N more” no longer overflows; week view paginated
+- No iOS/Android store promo (HHMB web-only)
+
+### v0.1.1-beta
 
 - Ported HSSB LeaveApp dark theme (atmosphere, shell, login chrome)
 - HH logo favicon and page title: LeaveApp - Harrisons Holdings (Malaysia) Berhad

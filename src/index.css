@@ -759,6 +759,111 @@ textarea {
     align-items: center;
     justify-content: center;
   }
+
+  /* Brand + close row: keep X top-right (escape global flex stacking) */
+  .mobile-sidebar-brand-row {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+  }
+
+  .mobile-sidebar-brand-row .mobile-menu-button {
+    width: auto !important;
+    align-self: center !important;
+    flex-shrink: 0 !important;
+  }
+}
+
+/* Leave Calendar toolbar — escape global flex-row → column mobile override */
+.calendar-toolbar {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+}
+
+.calendar-toolbar-row {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 10px 12px !important;
+}
+
+.calendar-view-toggle {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 4px !important;
+  background-color: #1E293B;
+  padding: 4px;
+  border-radius: 0.5rem;
+  flex-shrink: 0;
+}
+
+.calendar-view-btn {
+  padding: 0.5rem 0.875rem;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #94a3b8;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.calendar-view-btn.active {
+  background-color: #6366f1;
+  color: #fff;
+}
+
+.calendar-view-btn:not(.active):hover {
+  color: #f1f5f9;
+}
+
+.calendar-filters {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 8px 12px !important;
+}
+
+.calendar-filter-field {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 6px !important;
+  flex-shrink: 0;
+}
+
+.calendar-export-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.calendar-nav-row {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+  width: 100%;
+}
+
+.calendar-week-pager {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+}
+
+@media (max-width: 639px) {
+  .calendar-export-btn {
+    margin-left: 0;
+  }
 }
 
 /* Desktop - show desktop sidebar */
@@ -911,17 +1016,17 @@ textarea {
     width: 100% !important;
   }
   
-  /* Stack form buttons */
-  .flex.gap-2,
-  .flex.gap-3,
-  .flex.gap-4 {
+  /* Stack form buttons only (do not affect drawers, toolbars, etc.) */
+  form .flex.gap-2,
+  form .flex.gap-3,
+  form .flex.gap-4 {
     flex-direction: column !important;
     gap: 12px !important;
   }
   
-  .flex.gap-2 button,
-  .flex.gap-3 button,
-  .flex.gap-4 button {
+  form .flex.gap-2 button,
+  form .flex.gap-3 button,
+  form .flex.gap-4 button {
     width: 100% !important;
   }
 }

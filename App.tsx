@@ -409,11 +409,24 @@ const ChangelogView: React.FC = () => {
             <h1 className="text-3xl font-bold text-text-primary mb-6">Changelog</h1>
             
             <div className="space-y-8">
+                {/* Version 0.1.2-beta */}
+                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-2xl font-semibold text-text-primary">Version 0.1.2-beta</h2>
+                        <span className="text-sm text-text-muted">19 Sep 2026 (Latest)</span>
+                    </div>
+                    <ul className="space-y-2 text-text-secondary">
+                        <li>• Ported HSSB v3.0.7 layout CSS: mobile sidebar close row and Leave Calendar toolbar</li>
+                        <li>• Contained month cells so “+N more” no longer overflows into the week below</li>
+                        <li>• Paginate calendar week view (25 employees per page)</li>
+                    </ul>
+                </div>
+
                 {/* Version 0.1.1-beta */}
                 <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
                     <div className="flex items-center justify-between mb-4">
                         <h2 className="text-2xl font-semibold text-text-primary">Version 0.1.1-beta</h2>
-                        <span className="text-sm text-text-muted">18 Sep 2026 (Latest)</span>
+                        <span className="text-sm text-text-muted">18 Sep 2026</span>
                     </div>
                     <ul className="space-y-2 text-text-secondary">
                         <li>• Ported HSSB LeaveApp dark theme (atmosphere gradients, shell chrome, login card styling)</li>
@@ -3448,6 +3461,9 @@ const CalendarView: React.FC<{
     const [departmentFilter, setDepartmentFilter] = useState<string>('all');
     const [calendarView, setCalendarView] = useState<'month' | 'week'>('month');
     const [expandedDay, setExpandedDay] = useState<string | null>(null);
+    const [weekPage, setWeekPage] = useState(0);
+    const isSmUp = useMediaQuery('(min-width: 640px)');
+    const WEEK_PAGE_SIZE = 25;
 
     const adminManagedDepartmentIds = useMemo(() => {
         if (user.role !== UserRole.ADMIN) return [];
@@ -3901,39 +3917,42 @@ const CalendarView: React.FC<{
             .sort((a, b) => a.name.localeCompare(b.name));
     };
 
+    const weekUsersAll = getUsersForWeekView();
+    const weekPageCount = Math.max(1, Math.ceil(weekUsersAll.length / WEEK_PAGE_SIZE));
+    const safeWeekPage = Math.min(weekPage, weekPageCount - 1);
+    const weekUsersPage = weekUsersAll.slice(safeWeekPage * WEEK_PAGE_SIZE, (safeWeekPage + 1) * WEEK_PAGE_SIZE);
+    const weekDays = getWeekDays();
+
+    useEffect(() => {
+        setWeekPage(0);
+    }, [branchFilter, departmentFilter, calendarView]);
+
     return (
         <div className="animate-fade-in">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                <h1 className="text-2xl sm:text-3xl font-bold">Leave Calendar</h1>
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 w-full sm:w-auto">
-                    {/* View Toggle */}
-                    <div className="flex items-center gap-1 sm:gap-2 bg-surface-light p-1 rounded-lg w-full sm:w-auto">
+            <h1 className="text-2xl sm:text-3xl font-bold mb-4">Leave Calendar</h1>
+
+            <div className="calendar-toolbar mb-4 sm:mb-6">
+                <div className="calendar-toolbar-row">
+                    <div className="calendar-view-toggle">
                         <button
+                            type="button"
                             onClick={() => setCalendarView('month')}
-                            className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-md text-sm sm:text-base font-medium transition-colors ${
-                                calendarView === 'month'
-                                    ? 'bg-primary text-white'
-                                    : 'text-text-muted hover:text-text-primary'
-                            }`}
+                            className={`calendar-view-btn ${calendarView === 'month' ? 'active' : ''}`}
                         >
                             Month
                         </button>
                         <button
+                            type="button"
                             onClick={() => setCalendarView('week')}
-                            className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-md text-sm sm:text-base font-medium transition-colors ${
-                                calendarView === 'week'
-                                    ? 'bg-primary text-white'
-                                    : 'text-text-muted hover:text-text-primary'
-                            }`}
+                            className={`calendar-view-btn ${calendarView === 'week' ? 'active' : ''}`}
                         >
                             Week
                         </button>
                     </div>
-                    {/* Filters - Show for users who can see multiple departments (approvers, admins, super admins) */}
+
                     {((user.role === UserRole.NORMAL && departments.some(d => d.approverIds?.includes(user.id))) || user.role === UserRole.ADMIN || user.role === UserRole.SUPER_ADMIN) && (
-                        <div className="flex flex-wrap items-center gap-2 sm:gap-4 w-full sm:w-auto">
-                            {/* Branch Filter */}
-                            <div className="flex items-center gap-2">
+                        <div className="calendar-filters">
+                            <div className="calendar-filter-field">
                                 <label htmlFor="branchFilter" className="text-xs sm:text-sm font-medium text-text-secondary">
                                     Branch:
                                 </label>
@@ -3949,9 +3968,7 @@ const CalendarView: React.FC<{
                                     ))}
                                 </select>
                             </div>
-                            
-                            {/* Department Filter */}
-                            <div className="flex items-center gap-2">
+                            <div className="calendar-filter-field">
                                 <label htmlFor="departmentFilter" className="text-xs sm:text-sm font-medium text-text-secondary">
                                     Dept:
                                 </label>
@@ -3970,51 +3987,49 @@ const CalendarView: React.FC<{
                             </div>
                         </div>
                     )}
-                    
-                    {/* Info message for normal users who are not approvers */}
+
                     {user.role === UserRole.NORMAL && !departments.some(d => d.approverIds?.includes(user.id)) && (
                         <div className="text-xs sm:text-sm text-text-muted italic">
                             Showing your approved leave requests only
                         </div>
                     )}
 
-                    {/* Export Button */}
-                    <button 
+                    <button
+                        type="button"
                         onClick={() => exportApprovedLeaveRequests(requests, users, departments, (currentDate.getMonth() + 1).toString(), currentDate.getFullYear().toString(), user)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                        className="calendar-export-btn bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                         title="Export approved leave requests for the current month"
                     >
-                        <span className="hidden sm:inline">📄</span>
-                        <span>Export</span>
+                        Export
                     </button>
                 </div>
-            </div>
 
-            {/* Calendar Navigation */}
-            <div className="flex justify-between items-center mb-4 sm:mb-6 gap-2">
-                <button 
-                    onClick={() => calendarView === 'month' ? navigateMonth('prev') : navigateWeek('prev')}
-                    className="bg-primary hover:bg-primary-dark text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-sm sm:text-base font-medium transition-colors"
-                >
-                    <span className="hidden sm:inline">← </span>Prev
-                </button>
-                <h2 className="text-lg sm:text-2xl font-semibold text-text-primary text-center flex-1">
-                    {calendarView === 'month' 
-                        ? `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`
-                        : (() => {
-                            const weekDays = getWeekDays();
-                            const start = weekDays[0];
-                            const end = weekDays[6];
-                            return `${start.getDate()} ${monthNames[start.getMonth()].substring(0, 3)} ${start.getFullYear()} - ${end.getDate()} ${monthNames[end.getMonth()].substring(0, 3)} ${end.getFullYear()}`;
-                        })()
-                    }
-                </h2>
-                <button 
-                    onClick={() => calendarView === 'month' ? navigateMonth('next') : navigateWeek('next')}
-                    className="bg-primary hover:bg-primary-dark text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-sm sm:text-base font-medium transition-colors"
-                >
-                    Next<span className="hidden sm:inline"> →</span>
-                </button>
+                <div className="calendar-nav-row">
+                    <button
+                        type="button"
+                        onClick={() => calendarView === 'month' ? navigateMonth('prev') : navigateWeek('prev')}
+                        className="bg-primary hover:bg-primary-dark text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-sm sm:text-base font-medium transition-colors shrink-0"
+                    >
+                        <span className="hidden sm:inline">← </span>Prev
+                    </button>
+                    <h2 className="text-base sm:text-xl font-semibold text-text-primary text-center flex-1 min-w-0 truncate px-2">
+                        {calendarView === 'month'
+                            ? `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`
+                            : (() => {
+                                const start = weekDays[0];
+                                const end = weekDays[6];
+                                return `${start.getDate()} ${monthNames[start.getMonth()].substring(0, 3)} ${start.getFullYear()} - ${end.getDate()} ${monthNames[end.getMonth()].substring(0, 3)} ${end.getFullYear()}`;
+                            })()
+                        }
+                    </h2>
+                    <button
+                        type="button"
+                        onClick={() => calendarView === 'month' ? navigateMonth('next') : navigateWeek('next')}
+                        className="bg-primary hover:bg-primary-dark text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-sm sm:text-base font-medium transition-colors shrink-0"
+                    >
+                        Next<span className="hidden sm:inline"> →</span>
+                    </button>
+                </div>
             </div>
 
             {/* Week View */}
@@ -4027,7 +4042,7 @@ const CalendarView: React.FC<{
                                     <th className="p-2 sm:p-4 text-left font-semibold text-xs sm:text-sm text-text-secondary border-r border-border sticky left-0 bg-surface-light z-10 min-w-[120px] sm:min-w-[200px]">
                                         Team Member
                                     </th>
-                                    {getWeekDays().map((day, index) => {
+                                    {weekDays.map((day, index) => {
                                         const isToday = day.toDateString() === new Date().toDateString();
                                         const dayString = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
                                         const isHoliday = isPublicHoliday(dayString);
@@ -4061,7 +4076,14 @@ const CalendarView: React.FC<{
                                 </tr>
                             </thead>
                             <tbody>
-                                {getUsersForWeekView().map((employee) => {
+                                {weekUsersPage.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={8} className="p-6 text-center text-text-muted text-sm">
+                                            No team members match the current filters.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                weekUsersPage.map((employee) => {
                                     const employeeDept = departments.find(d => d.id === employee.departmentId);
                                     return (
                                         <tr key={employee.id} className="border-b border-border hover:bg-surface-light/50 transition-colors">
@@ -4071,7 +4093,7 @@ const CalendarView: React.FC<{
                                                     <div className="text-xs text-text-muted">{employeeDept?.name || 'No Department'}</div>
                                                 </div>
                                             </td>
-                                            {getWeekDays().map((day, dayIndex) => {
+                                            {weekDays.map((day, dayIndex) => {
                                                 const isToday = day.toDateString() === new Date().toDateString();
                                                 const leaves = getLeaveForUserAndDate(employee.id, day);
                                                 return (
@@ -4109,10 +4131,35 @@ const CalendarView: React.FC<{
                                             })}
                                         </tr>
                                     );
-                                })}
+                                })
+                                )}
                             </tbody>
                         </table>
                     </div>
+                    {weekUsersAll.length > WEEK_PAGE_SIZE && (
+                        <div className="calendar-week-pager flex items-center justify-between gap-3 px-3 sm:px-4 py-3 border-t border-border bg-surface-light/40">
+                            <button
+                                type="button"
+                                disabled={safeWeekPage <= 0}
+                                onClick={() => setWeekPage(p => Math.max(0, p - 1))}
+                                className="px-3 py-1.5 rounded-lg text-sm font-medium bg-primary text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary-dark transition-colors"
+                            >
+                                Previous
+                            </button>
+                            <span className="text-xs sm:text-sm text-text-secondary text-center">
+                                Showing {safeWeekPage * WEEK_PAGE_SIZE + 1}–{Math.min((safeWeekPage + 1) * WEEK_PAGE_SIZE, weekUsersAll.length)} of {weekUsersAll.length}
+                                <span className="text-text-muted"> · Page {safeWeekPage + 1} / {weekPageCount}</span>
+                            </span>
+                            <button
+                                type="button"
+                                disabled={safeWeekPage >= weekPageCount - 1}
+                                onClick={() => setWeekPage(p => Math.min(weekPageCount - 1, p + 1))}
+                                className="px-3 py-1.5 rounded-lg text-sm font-medium bg-primary text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary-dark transition-colors"
+                            >
+                                Next
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -4129,7 +4176,7 @@ const CalendarView: React.FC<{
                 </div>
 
                 {/* Calendar Days */}
-                <div className="grid grid-cols-7">
+                <div className="grid grid-cols-7 auto-rows-[88px] sm:auto-rows-[128px]">
                     {calendarDays.map((day, index) => {
                         const isCurrentMonth = day.getMonth() === currentDate.getMonth();
                         const isToday = day.toDateString() === new Date().toDateString();
@@ -4138,15 +4185,14 @@ const CalendarView: React.FC<{
                         const isHoliday = isPublicHoliday(dayString);
                         const holidayName = isHoliday ? (getPublicHolidayName(dayString) || 'Public Holiday') : null;
                         const leaveUsers = getLeaveUsersForDate(day);
-                        // Show fewer items on mobile (handled via CSS), but slice for performance
-                        const maxVisible = 4;
+                        const maxVisible = isSmUp ? 3 : 2;
                         const visibleUsers = leaveUsers.slice(0, maxVisible);
                         const extraCount = leaveUsers.length - visibleUsers.length;
                         
                         return (
                             <div
                                 key={index}
-                                className={`min-h-[80px] sm:min-h-[120px] p-1 sm:p-2 border-r border-b border-border last:border-r-0 ${
+                                className={`h-[88px] sm:h-[128px] overflow-hidden flex flex-col p-1 sm:p-2 border-r border-b border-border last:border-r-0 ${
                                     isToday 
                                         ? 'bg-primary/20 border-2 border-primary' 
                                         : isCurrentMonth 
@@ -4155,7 +4201,7 @@ const CalendarView: React.FC<{
                                 }`}
                             >
                                 {/* Day Number + Public Holiday label */}
-                                <div className="flex items-center justify-between gap-1 mb-1 sm:mb-2">
+                                <div className="flex items-center justify-between gap-1 mb-0.5 sm:mb-1 flex-shrink-0">
                                     <div className={`text-xs sm:text-sm font-medium ${
                                         isToday 
                                             ? 'text-primary font-bold' 
@@ -4174,7 +4220,8 @@ const CalendarView: React.FC<{
                                 </div>
                                 
                                 {/* Leave Users - Using Lookup Table */}
-                                <div className="space-y-0.5 sm:space-y-1">
+                                <div className="min-h-0 flex-1 overflow-hidden flex flex-col gap-0.5">
+                                    <div className="min-h-0 overflow-hidden space-y-0.5 sm:space-y-1">
                                     {visibleUsers.map((user, userIndex) => {
                                         let bgColor = 'bg-emerald-300 text-emerald-900'; // Annual (default)
                                         if (user.leaveType === LeaveType.SICK) {
@@ -4192,20 +4239,21 @@ const CalendarView: React.FC<{
                                         return (
                                             <div
                                                 key={`${dayString}-${userIndex}`}
-                                                className={`text-[9px] sm:text-[11px] px-1 sm:px-1.5 py-0.5 rounded ${bgColor} flex items-center gap-0.5 sm:gap-1 cursor-pointer`}
+                                                className={`text-[9px] sm:text-[11px] px-1 sm:px-1.5 py-0.5 rounded ${bgColor} flex items-center gap-0.5 sm:gap-1 cursor-pointer min-w-0`}
                                                 onClick={() => setExpandedDay(dayString)}
                                                 title={`${user.name} - ${user.leaveType} (${user.department}) - ${user.dayType === 'full' ? 'Full Day' : user.dayType === 'am' ? 'Half Day (AM)' : 'Half Day (PM)'}`}
                                             >
-                                                <span className="text-[7px] sm:text-[9px]">{indicator}</span>
+                                                <span className="text-[7px] sm:text-[9px] shrink-0">{indicator}</span>
                                                 <span className="truncate">{user.name}</span>
                                             </div>
                                         );
                                     })}
+                                    </div>
                                     {extraCount > 0 && (
                                         <button
                                             type="button"
                                             onClick={() => setExpandedDay(dayString)}
-                                            className="text-[9px] sm:text-[11px] text-primary hover:underline w-full text-left"
+                                            className="text-[9px] sm:text-[11px] text-primary hover:underline w-full text-left shrink-0 whitespace-nowrap truncate"
                                         >
                                             +{extraCount} more
                                         </button>
@@ -4339,7 +4387,7 @@ const authInputClassName =
     'auth-login-input w-full bg-surface-light border border-border rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary';
 
 const AuthFormContainer: React.FC<{ title: string, children: React.ReactNode }> = ({ title, children }) => {
-    const appVersion = '0.1.1-beta';
+    const appVersion = '0.1.2-beta';
     return (
         <div className="relative min-h-screen flex items-center justify-center app-atmosphere animate-fade-in overflow-hidden px-4 py-8">
             <div className="relative w-full max-w-md p-8 space-y-6 bg-surface rounded-2xl shadow-elegant-lg shadow-[0_25px_50px_-12px_rgba(99,102,241,0.15)] border border-border/40">
@@ -5260,7 +5308,7 @@ const AppShell: React.FC<{
     );
 
     const Footer: React.FC = () => {
-        const appVersion = '0.1.1-beta'; // Application version
+        const appVersion = '0.1.2-beta'; // Application version
         return (
             <footer className="bg-slate-800/80 border-t border-slate-700/80 p-4 text-center backdrop-blur-sm">
                 <p className="text-slate-400 text-sm">© 2026 Harrisons Holdings (Malaysia) Berhad | v{appVersion}</p>
@@ -5302,7 +5350,7 @@ const AppShell: React.FC<{
             {/* Mobile Sidebar */}
             <div className={`mobile-sidebar app-atmosphere flex flex-col ${mobileSidebarOpen ? 'open' : ''}`}>
                 <div className="flex-shrink-0 p-4 border-b border-border/60">
-                    <div className="flex items-start justify-between gap-2 mb-4">
+                    <div className="mobile-sidebar-brand-row mb-4">
                         <div className="flex items-center gap-3 min-w-0">
                             <AppLogo className="h-11 w-11 rounded-xl shrink-0 shadow-sm" />
                             <div className="min-w-0">
