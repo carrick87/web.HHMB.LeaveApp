@@ -2,7 +2,7 @@
 
 Leave management web app for **Harrisons Holdings (Malaysia) Berhad**, built with React, TypeScript, Vite, and Firebase.
 
-**Current version:** `0.1.2-beta`
+**Current version:** `0.1.3-beta`
 
 ## Features
 
@@ -57,7 +57,12 @@ Open `http://localhost:5173`.
 
 ## Version History
 
-### v0.1.2-beta (Current)
+### v0.1.3-beta (Current)
+
+- Ported HSSB v3.0.8 Approvals Details: “Team also on leave” for overlapping peers under the same approver (Pending/Approved)
+- Peer list shows Full day / AM / PM (and multi-day start→end times)
+
+### v0.1.2-beta
 
 - Ported HSSB v3.0.7 layout CSS (mobile sidebar close row, Leave Calendar toolbar)
 - Month cells contained so “+N more” no longer overflows; week view paginated

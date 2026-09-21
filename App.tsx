@@ -56,6 +56,7 @@ import { auth } from './services/firebaseConfig';
 import { validateFilesForStorage, convertFilesToStoredFiles, convertStoredFilesToFiles, formatFileSize, downloadStoredFile, type StoredFile } from './utils/fileStorage';
 import LeaveSummary from './components/LeaveSummary';
 import RequesterLeaveInsight from './components/RequesterLeaveInsight';
+import ApproverOverlapPeers from './components/ApproverOverlapPeers';
 import UserManagement from './components/UserManagement';
 import DepartmentSettings from './components/DepartmentSettings';
 import BranchSettings from './components/BranchSettings';
@@ -409,11 +410,23 @@ const ChangelogView: React.FC = () => {
             <h1 className="text-3xl font-bold text-text-primary mb-6">Changelog</h1>
             
             <div className="space-y-8">
+                {/* Version 0.1.3-beta */}
+                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-2xl font-semibold text-text-primary">Version 0.1.3-beta</h2>
+                        <span className="text-sm text-text-muted">21 Sep 2026 (Latest)</span>
+                    </div>
+                    <ul className="space-y-2 text-text-secondary">
+                        <li>• Approvals Details: “Team also on leave” shows other people under the same approver with overlapping dates (Pending/Approved)</li>
+                        <li>• Peer list shows Full day / AM / PM (and multi-day start→end times)</li>
+                    </ul>
+                </div>
+
                 {/* Version 0.1.2-beta */}
                 <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
                     <div className="flex items-center justify-between mb-4">
                         <h2 className="text-2xl font-semibold text-text-primary">Version 0.1.2-beta</h2>
-                        <span className="text-sm text-text-muted">19 Sep 2026 (Latest)</span>
+                        <span className="text-sm text-text-muted">19 Sep 2026</span>
                     </div>
                     <ul className="space-y-2 text-text-secondary">
                         <li>• Ported HSSB v3.0.7 layout CSS: mobile sidebar close row and Leave Calendar toolbar</li>
@@ -3130,6 +3143,13 @@ const ApprovalsView: React.FC<{
                                                                 requests={requests}
                                                                 users={users}
                                                             />
+                                                            <ApproverOverlapPeers
+                                                                currentUser={user}
+                                                                request={r}
+                                                                requests={requests}
+                                                                users={users}
+                                                                departments={departments}
+                                                            />
                                                             <LeaveSummary 
                                                                 request={r}
                                                                 users={users}
@@ -3322,6 +3342,13 @@ const ApprovalsView: React.FC<{
                                                     request={r}
                                                     requests={requests}
                                                     users={users}
+                                                />
+                                                <ApproverOverlapPeers
+                                                    currentUser={user}
+                                                    request={r}
+                                                    requests={requests}
+                                                    users={users}
+                                                    departments={departments}
                                                 />
                                                 <LeaveSummary 
                                                     request={r}
@@ -4387,7 +4414,7 @@ const authInputClassName =
     'auth-login-input w-full bg-surface-light border border-border rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary';
 
 const AuthFormContainer: React.FC<{ title: string, children: React.ReactNode }> = ({ title, children }) => {
-    const appVersion = '0.1.2-beta';
+    const appVersion = '0.1.3-beta';
     return (
         <div className="relative min-h-screen flex items-center justify-center app-atmosphere animate-fade-in overflow-hidden px-4 py-8">
             <div className="relative w-full max-w-md p-8 space-y-6 bg-surface rounded-2xl shadow-elegant-lg shadow-[0_25px_50px_-12px_rgba(99,102,241,0.15)] border border-border/40">
@@ -5308,7 +5335,7 @@ const AppShell: React.FC<{
     );
 
     const Footer: React.FC = () => {
-        const appVersion = '0.1.2-beta'; // Application version
+        const appVersion = '0.1.3-beta'; // Application version
         return (
             <footer className="bg-slate-800/80 border-t border-slate-700/80 p-4 text-center backdrop-blur-sm">
                 <p className="text-slate-400 text-sm">© 2026 Harrisons Holdings (Malaysia) Berhad | v{appVersion}</p>
