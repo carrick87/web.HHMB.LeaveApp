@@ -2,9 +2,11 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { User, UserRole, Department, LeaveRequest, LeaveStatus, Branch } from '../types';
 import { createUser, updateUser, deleteUser, updateUserRole, updateUserLeaveDays, toggleUserStatus, resetUserPassword, getOrphanedLeaveRequests, restoreLeaveRequestsByUserIds } from '../services/firebaseService';
 import { generateSecurePassword } from '../utils/passwordUtils';
-import { ChevronDownIcon, PlusIcon, PencilIcon, TrashIcon, UserIcon } from './Icons';
+import { ChevronDownIcon, PlusIcon, PencilIcon, TrashIcon, UserIcon, BuildingOfficeIcon } from './Icons';
+import AssignDepartmentWizard from './AssignDepartmentWizard';
 import {
     getEffectiveUserBranch as resolveEffectiveUserBranch,
+    getAdminAllowedBranches,
     legacyEmpNumberBranchPrefix,
     getAvailableBranchOptions,
     formatBranchLabel,
@@ -36,8 +38,12 @@ interface UserManagementProps {
 }
 
 const UserManagement: React.FC<UserManagementProps> = ({ users, departments, currentUser, branches, onUserUpdate }) => {
+    const isSuperAdmin = currentUser.role === UserRole.SUPER_ADMIN;
+    const isAdmin = currentUser.role === UserRole.ADMIN;
+
     const [editingUser, setEditingUser] = useState<User | null>(null);
     const [showCreateUser, setShowCreateUser] = useState(false);
+    const [wizardUser, setWizardUser] = useState<User | null>(null);
     const [userForm, setUserForm] = useState({
         name: '',
         email: '',
@@ -78,8 +84,23 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, departments, cur
         status: ''
     });
 
+    const allowedBranches = useMemo(() => getAdminAllowedBranches(currentUser), [currentUser]);
+
+    const canManageTargetUser = (user: User): boolean => {
+        if (isSuperAdmin) return true;
+        if (!isAdmin) return false;
+        if (user.role !== UserRole.NORMAL) return false;
+        if (!allowedBranches || allowedBranches.length === 0) return false;
+        const userBranch = resolveEffectiveUserBranch(user);
+        return Boolean(userBranch) && allowedBranches.includes(userBranch);
+    };
+
     const handleCreateUser = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!isSuperAdmin) {
+            setError('Only Super Admin can create users.');
+            return;
+        }
         setIsLoading(true);
         setError(null);
         setSuccess(null);
@@ -100,6 +121,10 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, departments, cur
     const handleUpdateUser = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!editingUser) return;
+        if (!isSuperAdmin) {
+            setError('Only Super Admin can edit users.');
+            return;
+        }
 
         setIsLoading(true);
         setError(null);
@@ -141,6 +166,10 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, departments, cur
     };
 
     const handleDeleteUser = async (userId: string) => {
+        if (!isSuperAdmin) {
+            setError('Only Super Admin can delete users.');
+            return;
+        }
         const user = users.find(u => u.id === userId);
         if (!user) return;
         
@@ -190,6 +219,10 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, departments, cur
     };
 
     const handleUpdateUserRole = async (userId: string, newRole: UserRole) => {
+        if (!isSuperAdmin) {
+            setError('Only Super Admin can change user roles.');
+            return;
+        }
         setIsLoading(true);
         setError(null);
         setSuccess(null);
@@ -222,6 +255,11 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, departments, cur
     };
 
     const handleToggleUserStatus = async (userId: string, isActive: boolean) => {
+        const user = users.find(u => u.id === userId);
+        if (!user || !canManageTargetUser(user)) {
+            setError('You can only activate or deactivate Normal users in your assigned branches.');
+            return;
+        }
         setIsLoading(true);
         setError(null);
         setSuccess(null);
@@ -238,6 +276,10 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, departments, cur
     };
 
     const openPasswordResetModal = (user: User) => {
+        if (!isSuperAdmin) {
+            setError('Only Super Admin can reset passwords.');
+            return;
+        }
         setError(null);
         const p = generateSecurePassword();
         setNewPassword(p);
@@ -254,6 +296,10 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, departments, cur
 
     const handleResetPassword = async () => {
         if (!resettingPasswordFor) return;
+        if (!isSuperAdmin) {
+            setError('Only Super Admin can reset passwords.');
+            return;
+        }
 
         // Validate password
         if (!newPassword || newPassword.length < 6) {
@@ -327,6 +373,10 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, departments, cur
     }, [showRestoreModal, currentUser.role]);
 
     const handleOpenRestoreModal = (user: User) => {
+        if (!isSuperAdmin) {
+            setError('Only Super Admin can restore leave requests.');
+            return;
+        }
         setRestoringForUser(user);
         setShowRestoreModal(true);
         setSelectedRequestIds(new Set());
@@ -356,6 +406,10 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, departments, cur
     };
 
     const handleRestoreSelectedRequests = async () => {
+        if (!isSuperAdmin) {
+            setError('Only Super Admin can restore leave requests.');
+            return;
+        }
         if (!restoringForUser || selectedRequestIds.size === 0) {
             setError('Please select at least one leave request to restore');
             return;
@@ -426,6 +480,10 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, departments, cur
     };
 
     const startEdit = (user: User) => {
+        if (!isSuperAdmin) {
+            setError('Only Super Admin can edit users.');
+            return;
+        }
         setEditingUser(user);
         
         // Validate current department belongs to user's branch
@@ -487,34 +545,17 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, departments, cur
 
     // Filter and sort users
     const filteredAndSortedUsers = React.useMemo(() => {
-        let filtered = users; // Show all users (both active and inactive)
+        let filtered = [...users];
 
-        // For Admin role: filter users by assigned branches
-        if (currentUser.role === UserRole.ADMIN) {
-            const adminBranches = currentUser.branches && currentUser.branches.length > 0
-                ? currentUser.branches
-                : (() => {
-                    const own = resolveEffectiveUserBranch(currentUser);
-                    return own ? [own] : [];
-                })();
-
-            if (adminBranches.length > 0) {
-                filtered = filtered.filter(user => {
-                    const userBranch = resolveEffectiveUserBranch(user);
-                    return userBranch && adminBranches.includes(userBranch);
-                });
-            }
-
-            const adminManagedDepartments = currentUser.adminDepartments || [];
-            if (adminManagedDepartments.length > 0) {
-                filtered = filtered.filter(user => {
-                    // Always allow admins to see users without a department (so they can assign one)
-                    if (!user.departmentId) {
-                        return true;
-                    }
-                    return adminManagedDepartments.includes(user.departmentId);
-                });
-            }
+        // Admin: Normal users in assigned branches only
+        if (isAdmin) {
+            const adminBranches = allowedBranches ?? [];
+            filtered = filtered.filter(user => {
+                if (user.role !== UserRole.NORMAL) return false;
+                if (adminBranches.length === 0) return false;
+                const userBranch = getEffectiveUserBranch(user);
+                return Boolean(userBranch) && adminBranches.includes(userBranch);
+            });
         }
 
         // Apply global search
@@ -596,7 +637,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, departments, cur
         });
 
         return filtered;
-    }, [users, searchTerm, columnFilters, sortField, sortDirection, departments, currentUser]);
+    }, [users, searchTerm, columnFilters, sortField, sortDirection, departments, currentUser, isAdmin, allowedBranches]);
 
     const handleSort = (field: keyof User | 'departmentName' | 'branch') => {
         if (sortField === field) {
@@ -634,19 +675,23 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, departments, cur
             <div className="flex justify-between items-center mb-8">
                 <div>
                     <h1 className="text-3xl font-bold text-text-primary">User Management</h1>
-                    <p className="text-text-secondary mt-2">Manage system users, roles, and permissions</p>
-                    {currentUser.role === UserRole.ADMIN && currentUser.branches && currentUser.branches.length > 0 && (
+                    <p className="text-text-secondary mt-2">
+                        {isAdmin
+                            ? 'Manage Normal users in your assigned branches'
+                            : 'Manage system users, roles, and permissions'}
+                    </p>
+                    {isAdmin && allowedBranches && allowedBranches.length > 0 && (
                         <p className="text-sm text-text-muted mt-1">
-                            Showing users from branches: {currentUser.branches.join(', ')}
+                            Showing Normal users from branches: {allowedBranches.join(', ')}
                         </p>
                     )}
-                    {currentUser.role === UserRole.ADMIN && (!currentUser.branches || currentUser.branches.length === 0) && resolveEffectiveUserBranch(currentUser) && (
+                    {isAdmin && (!allowedBranches || allowedBranches.length === 0) && (
                         <p className="text-sm text-text-muted mt-1">
-                            Showing users from branch: {resolveEffectiveUserBranch(currentUser)}
+                            No branches assigned. Ask a Super Admin to assign branches in User Management.
                         </p>
                     )}
                 </div>
-                {currentUser.role === UserRole.SUPER_ADMIN && (
+                {isSuperAdmin && (
                     <button
                         onClick={() => setShowCreateUser(true)}
                         className="bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-primary-focus transition-colors flex items-center gap-2 shadow-elegant"
@@ -670,7 +715,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, departments, cur
             )}
 
             {/* Create/Edit User Form */}
-            {(showCreateUser || editingUser) && (
+            {isSuperAdmin && (showCreateUser || editingUser) && (
                 <div className="mb-8 bg-card-bg rounded-xl shadow-elegant-lg border border-border p-6">
                     <h2 className="text-xl font-semibold text-text-primary mb-4">
                         {editingUser ? 'Edit User' : 'Create New User'}
@@ -1136,15 +1181,21 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, departments, cur
                                     </td>
                                     <td className="p-4 text-slate-300">{user.email || 'No email'}</td>
                                     <td className="p-2 w-28">
-                                        <select
-                                            value={user.role}
-                                            onChange={(e) => handleUpdateUserRole(user.id, e.target.value as UserRole)}
-                                            className="text-xs bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white w-full"
-                                        >
-                                            {Object.values(UserRole).map(role => (
-                                                <option key={role} value={role}>{role}</option>
-                                            ))}
-                                        </select>
+                                        {isSuperAdmin ? (
+                                            <select
+                                                value={user.role}
+                                                onChange={(e) => handleUpdateUserRole(user.id, e.target.value as UserRole)}
+                                                className="text-xs bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white w-full"
+                                            >
+                                                {Object.values(UserRole).map(role => (
+                                                    <option key={role} value={role}>{role}</option>
+                                                ))}
+                                            </select>
+                                        ) : (
+                                            <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${getRoleBadgeColor(user.role)}`}>
+                                                {user.role}
+                                            </span>
+                                        )}
                                     </td>
                                     <td className="p-2 w-28">
                                         <input
@@ -1169,14 +1220,21 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, departments, cur
                                     <td className="p-4">
                                         <div className="flex gap-2">
                                             <button
-                                                onClick={() => startEdit(user)}
-                                                className="p-2 text-blue-400 hover:bg-blue-500/20 rounded-md transition-colors"
-                                                title="Edit User"
+                                                onClick={() => setWizardUser(user)}
+                                                className="p-2 text-emerald-400 hover:bg-emerald-500/20 rounded-md transition-colors"
+                                                title="Assign Department"
                                             >
-                                                <PencilIcon className="w-4 h-4" />
+                                                <BuildingOfficeIcon className="w-4 h-4" />
                                             </button>
-                                            {currentUser.role === UserRole.SUPER_ADMIN && (
+                                            {isSuperAdmin && (
                                                 <>
+                                                    <button
+                                                        onClick={() => startEdit(user)}
+                                                        className="p-2 text-blue-400 hover:bg-blue-500/20 rounded-md transition-colors"
+                                                        title="Edit User"
+                                                    >
+                                                        <PencilIcon className="w-4 h-4" />
+                                                    </button>
                                                     <button
                                                         onClick={() => {
                                                             setSuccess(
@@ -1188,15 +1246,15 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, departments, cur
                                                     >
                                                         🔑
                                                     </button>
+                                                    <button
+                                                        onClick={() => handleDeleteUser(user.id)}
+                                                        className="p-2 text-red-400 hover:bg-red-500/20 rounded-md transition-colors"
+                                                        title="Delete User"
+                                                    >
+                                                        <TrashIcon className="w-4 h-4" />
+                                                    </button>
                                                 </>
                                             )}
-                                            <button
-                                                onClick={() => handleDeleteUser(user.id)}
-                                                className="p-2 text-red-400 hover:bg-red-500/20 rounded-md transition-colors"
-                                                title="Delete User"
-                                            >
-                                                <TrashIcon className="w-4 h-4" />
-                                            </button>
                                         </div>
                                     </td>
                                 </tr>
@@ -1215,14 +1273,16 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, departments, cur
                         <p className="text-text-muted">
                             {searchTerm || Object.values(columnFilters).some(v => v)
                                 ? 'Try adjusting your filters'
-                                : 'Create your first user to get started.'}
+                                : isAdmin
+                                    ? 'No Normal users in your assigned branches yet.'
+                                    : 'Create your first user to get started.'}
                         </p>
                     </div>
                 )}
             </div>
 
             {/* Password Reset Modal */}
-            {resettingPasswordFor && (
+            {isSuperAdmin && resettingPasswordFor && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
                     <div className="bg-card-bg rounded-xl shadow-elegant-lg border border-border p-6 max-w-md w-full">
                         <h2 className="text-xl font-semibold text-text-primary mb-4">
@@ -1360,7 +1420,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, departments, cur
             )}
 
             {/* Restore Leave Requests Modal */}
-            {showRestoreModal && restoringForUser && (
+            {isSuperAdmin && showRestoreModal && restoringForUser && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
                     <div className="bg-card-bg rounded-xl shadow-elegant-lg border border-border p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
                         <h2 className="text-xl font-semibold text-text-primary mb-4">
@@ -1468,6 +1528,19 @@ const UserManagement: React.FC<UserManagementProps> = ({ users, departments, cur
                         )}
                     </div>
                 </div>
+            )}
+            {wizardUser && (
+                <AssignDepartmentWizard
+                    targetUser={wizardUser}
+                    currentUser={currentUser}
+                    departments={departments}
+                    users={users}
+                    onClose={() => setWizardUser(null)}
+                    onAssigned={() => {
+                        setWizardUser(null);
+                        onUserUpdate();
+                    }}
+                />
             )}
         </div>
     );

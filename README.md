@@ -2,7 +2,7 @@
 
 Leave management web app for **Harrisons Holdings (Malaysia) Berhad**, built with React, TypeScript, Vite, and Firebase.
 
-**Current version:** `0.1.3-beta`
+**Current version:** `0.1.4-beta`
 
 ## Features
 
@@ -57,7 +57,13 @@ Open `http://localhost:5173`.
 
 ## Version History
 
-### v0.1.3-beta (Current)
+### v0.1.4-beta (Current)
+
+- Admin can open User Management for Normal users in assigned branches (activate/deactivate, assign department)
+- Admin can open Public Holidays and Leave Balance Upload (company-wide, same as Super Admin)
+- Download template on Employee, Leave Balance, and Public Holiday uploads dumps current data
+
+### v0.1.3-beta
 
 - Ported HSSB v3.0.8 Approvals Details: “Team also on leave” for overlapping peers under the same approver (Pending/Approved)
 - Peer list shows Full day / AM / PM (and multi-day start→end times)

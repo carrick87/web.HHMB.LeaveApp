@@ -8,7 +8,8 @@ import {
     deletePublicHolidaySet,
     setDefaultPublicHolidaySet
 } from '../services/firebaseService';
-import { UploadIcon, XIcon, TrashIcon } from './Icons';
+import { UploadIcon, DownloadIcon, XIcon, TrashIcon } from './Icons';
+import { downloadPublicHolidayUploadTemplate } from '../utils/uploadTemplates';
 
 interface PublicHolidayUploadProps {
     currentUser: User;
@@ -27,6 +28,7 @@ const PublicHolidayUpload: React.FC<PublicHolidayUploadProps> = ({ currentUser, 
     const [isDefault, setIsDefault] = useState<boolean>(false);
     const [editingSetId, setEditingSetId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [isDownloading, setIsDownloading] = useState(false);
     const [manualHolidayDate, setManualHolidayDate] = useState('');
     const [manualHolidayName, setManualHolidayName] = useState('');
 
@@ -377,6 +379,32 @@ const PublicHolidayUpload: React.FC<PublicHolidayUploadProps> = ({ currentUser, 
         }
     };
 
+    const handleDownloadHolidays = (holidays: PublicHoliday[], name?: string) => {
+        setIsDownloading(true);
+        setError(null);
+        try {
+            downloadPublicHolidayUploadTemplate(holidays, name);
+        } catch (err: any) {
+            console.error('Failed to download public holiday template:', err);
+            setError(err.message || 'Failed to download public holiday template.');
+        } finally {
+            setIsDownloading(false);
+        }
+    };
+
+    const handleDownloadTemplate = () => {
+        if (previewData.length > 0) {
+            handleDownloadHolidays(previewData, setName.trim() || 'current');
+            return;
+        }
+        const defaultSet = holidaySets.find(set => set.isDefault) || holidaySets[0];
+        if (defaultSet) {
+            handleDownloadHolidays(defaultSet.holidays, defaultSet.name);
+            return;
+        }
+        handleDownloadHolidays([], 'template');
+    };
+
     const normalizeDateInput = (dateValue: string): string | null => {
         const trimmed = dateValue.trim();
         if (!trimmed) return null;
@@ -464,7 +492,7 @@ const PublicHolidayUpload: React.FC<PublicHolidayUploadProps> = ({ currentUser, 
                         <label className="block text-sm font-medium text-text-secondary mb-2">
                             Excel File (.xlsx or .xls)
                         </label>
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-4 flex-wrap">
                             <label className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg font-medium hover:bg-primary-focus transition-colors cursor-pointer">
                                 <UploadIcon className="w-4 h-4" />
                                 {selectedFile ? 'Change File' : 'Select File'}
@@ -475,6 +503,15 @@ const PublicHolidayUpload: React.FC<PublicHolidayUploadProps> = ({ currentUser, 
                                     className="hidden"
                                 />
                             </label>
+                            <button
+                                type="button"
+                                onClick={handleDownloadTemplate}
+                                disabled={isDownloading || isUploading}
+                                className="flex items-center gap-2 bg-primary/20 text-primary px-4 py-2 rounded-lg font-medium hover:bg-primary/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <DownloadIcon className="w-4 h-4" />
+                                {isDownloading ? 'Downloading…' : 'Download template'}
+                            </button>
                             {selectedFile && (
                                 <div className="flex items-center gap-2 text-text-primary">
                                     <span>{selectedFile.name}</span>
@@ -702,6 +739,14 @@ const PublicHolidayUpload: React.FC<PublicHolidayUploadProps> = ({ currentUser, 
                                                 Default for {set.year}
                                             </span>
                                         )}
+                                        <button
+                                            onClick={() => handleDownloadHolidays(set.holidays, set.name)}
+                                            disabled={isDownloading}
+                                            className="flex items-center gap-1 bg-primary/20 text-primary text-xs px-3 py-1.5 rounded-md hover:bg-primary/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            <DownloadIcon className="w-3.5 h-3.5" />
+                                            Download
+                                        </button>
                                         <button
                                             onClick={() => handleEdit(set)}
                                             className="bg-primary text-white text-xs px-3 py-1.5 rounded-md hover:bg-primary-focus transition-colors"

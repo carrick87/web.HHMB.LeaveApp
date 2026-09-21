@@ -58,6 +58,12 @@ service cloud.firestore {
             .hasOnly(['isActive', 'departmentId', 'updatedAt']);
       }
 
+      function adminCanUpdateLeaveDays() {
+        return isAdmin()
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['leaveDaysTotal', 'updatedAt']);
+      }
+
       // Allow reading own data or if admin/super admin
       allow read: if request.auth != null && (
         request.auth.uid == userId ||
@@ -75,7 +81,8 @@ service cloud.firestore {
       allow update: if request.auth != null && (
         request.auth.uid == userId ||
         isSuperAdmin() ||
-        adminCanManageNormalUser()
+        adminCanManageNormalUser() ||
+        adminCanUpdateLeaveDays()
       );
 
       allow delete: if request.auth != null && isSuperAdmin();

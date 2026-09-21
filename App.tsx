@@ -410,11 +410,24 @@ const ChangelogView: React.FC = () => {
             <h1 className="text-3xl font-bold text-text-primary mb-6">Changelog</h1>
             
             <div className="space-y-8">
+                {/* Version 0.1.4-beta */}
+                <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-2xl font-semibold text-text-primary">Version 0.1.4-beta</h2>
+                        <span className="text-sm text-text-muted">21 Sep 2026 (Latest)</span>
+                    </div>
+                    <ul className="space-y-2 text-text-secondary">
+                        <li>• Admin can open User Management for Normal users in assigned branches (activate/deactivate, assign department)</li>
+                        <li>• Admin can open Public Holidays and Leave Balance Upload (company-wide, same as Super Admin)</li>
+                        <li>• Download template on Employee, Leave Balance, and Public Holiday uploads dumps current data</li>
+                    </ul>
+                </div>
+
                 {/* Version 0.1.3-beta */}
                 <div className="bg-card-bg border border-border rounded-lg p-6 shadow-elegant-lg">
                     <div className="flex items-center justify-between mb-4">
                         <h2 className="text-2xl font-semibold text-text-primary">Version 0.1.3-beta</h2>
-                        <span className="text-sm text-text-muted">21 Sep 2026 (Latest)</span>
+                        <span className="text-sm text-text-muted">21 Sep 2026</span>
                     </div>
                     <ul className="space-y-2 text-text-secondary">
                         <li>• Approvals Details: “Team also on leave” shows other people under the same approver with overlapping dates (Pending/Approved)</li>
@@ -4414,7 +4427,7 @@ const authInputClassName =
     'auth-login-input w-full bg-surface-light border border-border rounded-lg text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary';
 
 const AuthFormContainer: React.FC<{ title: string, children: React.ReactNode }> = ({ title, children }) => {
-    const appVersion = '0.1.3-beta';
+    const appVersion = '0.1.4-beta';
     return (
         <div className="relative min-h-screen flex items-center justify-center app-atmosphere animate-fade-in overflow-hidden px-4 py-8">
             <div className="relative w-full max-w-md p-8 space-y-6 bg-surface rounded-2xl shadow-elegant-lg shadow-[0_25px_50px_-12px_rgba(99,102,241,0.15)] border border-border/40">
@@ -5335,7 +5348,7 @@ const AppShell: React.FC<{
     );
 
     const Footer: React.FC = () => {
-        const appVersion = '0.1.3-beta'; // Application version
+        const appVersion = '0.1.4-beta'; // Application version
         return (
             <footer className="bg-slate-800/80 border-t border-slate-700/80 p-4 text-center backdrop-blur-sm">
                 <p className="text-slate-400 text-sm">© 2026 Harrisons Holdings (Malaysia) Berhad | v{appVersion}</p>
@@ -5426,7 +5439,12 @@ const AppShell: React.FC<{
                         </>
                     )}
                     {currentUser.role === UserRole.ADMIN && (
-                        <NavItem icon={<UploadIcon className="w-5 h-5"/>} label="Employee Register" view="employee-upload" isMobile />
+                        <>
+                            <NavItem icon={<UsersIcon className="w-5 h-5"/>} label="User Management" view="users" isMobile />
+                            <NavItem icon={<UploadIcon className="w-5 h-5"/>} label="Employee Register" view="employee-upload" isMobile />
+                            <NavItem icon={<UploadIcon className="w-5 h-5"/>} label="Leave Balance Upload" view="leave-balance-upload" isMobile />
+                            <NavItem icon={<span className="text-lg">📅</span>} label="Public Holidays" view="public-holidays" isMobile />
+                        </>
                     )}
                 </nav>
                 
@@ -5497,7 +5515,12 @@ const AppShell: React.FC<{
                             </>
                         )}
                     {currentUser.role === UserRole.ADMIN && (
-                        <NavItem icon={<UploadIcon className="w-5 h-5"/>} label="Employee Register" view="employee-upload" />
+                        <>
+                            <NavItem icon={<UsersIcon className="w-5 h-5"/>} label="User Management" view="users" />
+                            <NavItem icon={<UploadIcon className="w-5 h-5"/>} label="Employee Register" view="employee-upload" />
+                            <NavItem icon={<UploadIcon className="w-5 h-5"/>} label="Leave Balance Upload" view="leave-balance-upload" />
+                            <NavItem icon={<span className="text-lg">📅</span>} label="Public Holidays" view="public-holidays" />
+                        </>
                     )}
                     </nav>
                 
@@ -5560,8 +5583,12 @@ const AppShell: React.FC<{
                     ) && <AccessDeniedView pageName="Approvals" />}
                     {activeView === 'calendar' && <CalendarView user={currentUser} requests={leaveRequests} users={users} departments={departments} />}
                     {activeView === 'profile' && <UserProfile user={currentUser} departments={departments} onProfileUpdate={handleProfileUpdate} />}
-                    {activeView === 'users' && currentUser.role === UserRole.SUPER_ADMIN && <UserManagement users={users} departments={departments} currentUser={currentUser} branches={branches} onUserUpdate={handleUserUpdate} />}
-                    {activeView === 'users' && currentUser.role !== UserRole.SUPER_ADMIN && <AccessDeniedView pageName="User Management" />}
+                    {activeView === 'users' && (currentUser.role === UserRole.SUPER_ADMIN || currentUser.role === UserRole.ADMIN) && (
+                        <UserManagement users={users} departments={departments} currentUser={currentUser} branches={branches} onUserUpdate={handleUserUpdate} />
+                    )}
+                    {activeView === 'users' && currentUser.role !== UserRole.SUPER_ADMIN && currentUser.role !== UserRole.ADMIN && (
+                        <AccessDeniedView pageName="User Management" />
+                    )}
                     {activeView === 'employee-upload' && (currentUser.role === UserRole.SUPER_ADMIN || currentUser.role === UserRole.ADMIN) && (
                         <EmployeeUploadPage
                             users={users}
@@ -5574,10 +5601,10 @@ const AppShell: React.FC<{
                     {activeView === 'employee-upload' && currentUser.role !== UserRole.SUPER_ADMIN && currentUser.role !== UserRole.ADMIN && (
                         <AccessDeniedView pageName="Employee Upload" />
                     )}
-                    {activeView === 'leave-balance-upload' && currentUser.role === UserRole.SUPER_ADMIN && <LeaveBalanceUpload currentUser={currentUser} users={users} onUploadComplete={handleUserUpdate} />}
-                    {activeView === 'leave-balance-upload' && currentUser.role !== UserRole.SUPER_ADMIN && <AccessDeniedView pageName="Leave Balance Upload" />}
-                    {activeView === 'public-holidays' && currentUser.role === UserRole.SUPER_ADMIN && <PublicHolidayUpload currentUser={currentUser} onUploadComplete={handleReloadPublicHolidays} />}
-                    {activeView === 'public-holidays' && currentUser.role !== UserRole.SUPER_ADMIN && <AccessDeniedView pageName="Public Holidays" />}
+                    {activeView === 'leave-balance-upload' && (currentUser.role === UserRole.SUPER_ADMIN || currentUser.role === UserRole.ADMIN) && <LeaveBalanceUpload currentUser={currentUser} users={users} onUploadComplete={handleUserUpdate} />}
+                    {activeView === 'leave-balance-upload' && currentUser.role !== UserRole.SUPER_ADMIN && currentUser.role !== UserRole.ADMIN && <AccessDeniedView pageName="Leave Balance Upload" />}
+                    {activeView === 'public-holidays' && (currentUser.role === UserRole.SUPER_ADMIN || currentUser.role === UserRole.ADMIN) && <PublicHolidayUpload currentUser={currentUser} onUploadComplete={handleReloadPublicHolidays} />}
+                    {activeView === 'public-holidays' && currentUser.role !== UserRole.SUPER_ADMIN && currentUser.role !== UserRole.ADMIN && <AccessDeniedView pageName="Public Holidays" />}
                     {activeView === 'branches' && currentUser.role === UserRole.SUPER_ADMIN && (
                         <BranchSettings branches={branches} onBranchesChange={onBranchesReload} />
                     )}

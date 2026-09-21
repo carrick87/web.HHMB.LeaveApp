@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { User, LeaveBalanceHistory } from '../types';
-import { uploadLeaveBalanceHistory, getEmployees, getAllLeaveBalanceHistory } from '../services/firebaseService';
-import { UploadIcon, XIcon } from './Icons';
+import { uploadLeaveBalanceHistory, getEmployees, getAllLeaveBalanceHistory, getAllCurrentLeaveBalances } from '../services/firebaseService';
+import { downloadLeaveBalanceUploadTemplate } from '../utils/uploadTemplates';
+import { UploadIcon, DownloadIcon, XIcon } from './Icons';
 
 interface LeaveBalanceUploadProps {
     currentUser: User;
@@ -26,6 +27,7 @@ const LeaveBalanceUpload: React.FC<LeaveBalanceUploadProps> = ({ currentUser, us
     const [employees, setEmployees] = useState<Employee[]>([]);
     const [uploadHistory, setUploadHistory] = useState<LeaveBalanceHistory[]>([]);
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+    const [isDownloading, setIsDownloading] = useState(false);
 
     // Load employees from master list
     useEffect(() => {
@@ -206,6 +208,43 @@ const LeaveBalanceUpload: React.FC<LeaveBalanceUploadProps> = ({ currentUser, us
         if (fileInput) fileInput.value = '';
     };
 
+    const handleDownloadTemplate = async () => {
+        setIsDownloading(true);
+        setError(null);
+        try {
+            const currentBalances = await getAllCurrentLeaveBalances();
+            const balanceByNumber = new Map<string, number>();
+            for (const record of currentBalances) {
+                balanceByNumber.set(record.employeeNumber, record.leaveBalance);
+            }
+            const userByNumber = new Map<string, User>();
+            for (const user of users) {
+                if (user.employeeNumber) userByNumber.set(user.employeeNumber, user);
+            }
+            const rows = employees.map(emp => {
+                const current = balanceByNumber.get(emp.employeeNumber);
+                const signedUp = userByNumber.get(emp.employeeNumber);
+                const leaveBalance =
+                    typeof current === 'number'
+                        ? current
+                        : typeof signedUp?.leaveDaysTotal === 'number'
+                            ? signedUp.leaveDaysTotal
+                            : 0;
+                return {
+                    employeeNumber: emp.employeeNumber,
+                    employeeName: emp.employeeName,
+                    leaveBalance,
+                };
+            });
+            downloadLeaveBalanceUploadTemplate(rows);
+        } catch (err) {
+            console.error('Failed to download leave balance template:', err);
+            setError(err instanceof Error ? err.message : 'Failed to download leave balance template.');
+        } finally {
+            setIsDownloading(false);
+        }
+    };
+
     // Get today's date in YYYY-MM-DD format for date input
     const today = new Date().toISOString().split('T')[0];
 
@@ -244,7 +283,7 @@ const LeaveBalanceUpload: React.FC<LeaveBalanceUploadProps> = ({ currentUser, us
                         <label htmlFor="excel-file-input" className="block text-sm font-medium text-text-primary mb-2">
                             Excel File <span className="text-red-500">*</span>
                         </label>
-                        <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-4 flex-wrap">
                             <label
                                 htmlFor="excel-file-input"
                                 className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-md cursor-pointer hover:bg-primary-focus transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -252,6 +291,15 @@ const LeaveBalanceUpload: React.FC<LeaveBalanceUploadProps> = ({ currentUser, us
                                 <UploadIcon className="w-5 h-5" />
                                 <span>{selectedFile ? 'Change File' : 'Select Excel File'}</span>
                             </label>
+                            <button
+                                type="button"
+                                onClick={handleDownloadTemplate}
+                                disabled={isDownloading || isUploading}
+                                className="flex items-center gap-2 bg-primary/20 text-primary px-4 py-2 rounded-lg font-medium hover:bg-primary/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <DownloadIcon className="w-4 h-4" />
+                                {isDownloading ? 'Downloading…' : 'Download template'}
+                            </button>
                             <input
                                 id="excel-file-input"
                                 type="file"

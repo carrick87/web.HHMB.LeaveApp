@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import * as XLSX from 'xlsx';
-import { bulkSaveEmployees } from '../services/firebaseService';
-import { UploadIcon, CheckCircleIcon, XCircleIcon } from './Icons';
+import { bulkSaveEmployees, getEmployees } from '../services/firebaseService';
+import { downloadEmployeeUploadTemplate } from '../utils/uploadTemplates';
+import { UploadIcon, DownloadIcon, CheckCircleIcon, XCircleIcon } from './Icons';
 
 interface EmployeeUploadProps {
     onUploadComplete: () => void;
@@ -28,6 +29,7 @@ const EmployeeUpload: React.FC<EmployeeUploadProps> = ({ onUploadComplete }) => 
     const [preview, setPreview] = useState<EmployeeRow[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
+    const [isDownloading, setIsDownloading] = useState(false);
 
     const normalizePayGroup = (value: unknown): '5' | '6' => {
         return value?.toString().trim() === '6' ? '6' : '5';
@@ -174,16 +176,41 @@ const EmployeeUpload: React.FC<EmployeeUploadProps> = ({ onUploadComplete }) => 
         }
     };
 
+    const handleDownloadTemplate = async () => {
+        setIsDownloading(true);
+        setError(null);
+        try {
+            const employees = await getEmployees();
+            downloadEmployeeUploadTemplate(employees);
+        } catch (err) {
+            console.error('Failed to download employee template:', err);
+            setError(err instanceof Error ? err.message : 'Failed to download employee template.');
+        } finally {
+            setIsDownloading(false);
+        }
+    };
+
     return (
         <div className="bg-card-bg rounded-xl shadow-elegant-lg border border-border p-6 mb-8">
-            <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center">
-                    <UploadIcon className="w-5 h-5 text-primary" />
+            <div className="flex items-start justify-between gap-4 mb-6">
+                <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0">
+                        <UploadIcon className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                        <h2 className="text-xl font-semibold text-text-primary">Upload Employee Master List</h2>
+                        <p className="text-sm text-text-secondary">Upload Excel file with employee numbers (Column A), names (Column B), and optional paygroup (Column C: enter 6 for 6-day workers, otherwise defaults to 5)</p>
+                    </div>
                 </div>
-                <div>
-                    <h2 className="text-xl font-semibold text-text-primary">Upload Employee Master List</h2>
-                    <p className="text-sm text-text-secondary">Upload Excel file with employee numbers (Column A), names (Column B), and optional paygroup (Column C: enter 6 for 6-day workers, otherwise defaults to 5)</p>
-                </div>
+                <button
+                    type="button"
+                    onClick={handleDownloadTemplate}
+                    disabled={isDownloading || isProcessing}
+                    className="flex items-center gap-2 bg-primary/20 text-primary px-4 py-2 rounded-lg font-medium hover:bg-primary/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                >
+                    <DownloadIcon className="w-4 h-4" />
+                    {isDownloading ? 'Downloading…' : 'Download template'}
+                </button>
             </div>
 
             {/* Success/Error Messages */}

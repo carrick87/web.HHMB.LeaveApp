@@ -39,7 +39,7 @@ import {
     getDownloadURL,
     deleteObject
 } from 'firebase/storage';
-import { User, UserRole, LeaveBalanceHistory, PublicHolidaySet, LeaveRequest, Branch } from '../types';
+import { User, UserRole, LeaveBalanceHistory, LeaveBalanceCurrent, PublicHolidaySet, LeaveRequest, Branch } from '../types';
 import { auth, firestore, storage, getSecondaryAuth } from './firebaseConfig';
 import { DEFAULT_BRANCH_SEED_CODES } from '../utils/departmentSettingsHelpers';
 
@@ -1889,6 +1889,10 @@ export const replaceAllCurrentLeaveBalances = async (
         console.error('Error replacing current leave balances:', error);
         throw new Error('Failed to replace current leave balances');
     }
+};
+
+export const getAllCurrentLeaveBalances = async (): Promise<LeaveBalanceCurrent[]> => {
+    return getCollection<LeaveBalanceCurrent>('leaveBalanceCurrent');
 };
 
 // Get current leave balance for an employee
